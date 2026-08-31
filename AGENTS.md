@@ -1,14 +1,14 @@
 # AGENTS.md — Control de Asistencia
 
 ## Project snapshot
-- **What:** 6 factory section sheets (`Preparacion`, `Continua`, `Acoplado`, `Retorcedoras`, `Madejeras`, `Producto Terminado`) → single normalized DB sheet `Registro` via Apps Script. Sheet: `1iw9bduLeGXQMbjmMV1qrMqE2WoPWCBz3`. Repo is **docs-only today** — `apps-script/` does not exist yet, PRD is `docs/PRD.md` v0.2.1.
+- **What:** 6 factory section sheets (`Preparacion`, `Continua`, `Acoplado`, `Retorcedoras`, `Madejeras`, `Producto Terminado`) → single normalized DB sheet `Registro` via Apps Script. Sheet (native): `1GrZ_9w3CPvsJ22nVCndFojkhrhGmFGY8XcLQrtW7jTs` (converted 2026-08-31 from `1iw9bduLeGXQMbjmMV1qrMqE2WoPWCBz3` xlsx). Repo has `apps-script/` (6 modular .gs, v0.3.0), PRD `docs/PRD.md` v0.3.0.
 - **Next step:** SDD `propose → spec → design → tasks → apply`. Do not start coding until `sdd-propose` is accepted.
 - **Source of truth:** `docs/PRD.md` §5.2–§5.3 + `docs/playwright-evidence/Preparacion-analysis.md` — trust these over sheet UI assumptions. `README.md` is just a pointer.
 
 ## Architecture agents get wrong
 - **Never DOM/canvas scrape.** Sheet renders as single `<canvas>` with `freezebar-handle` overlays intercepting clicks; Playwright snapshot shows no cell text. Truth is `input#t-name-box` + `div#t-formula-bar-input` + XHR `streamrows`/`selection`, and for code it is **Sheets API v4 + `onEdit` trigger**, not `waffle_api`.
-- **10 sheets, fixed names:** `- AYUDA -`, 6 sections above, `Registro` (empty target), `Apoyo`, `Hoja2`. Section detection must use allowlist — renamed sheet = ignored + warning.
-- **Input zone:** `E15:AI44` (30 operator rows). `Registro` PK is `(section, operator_doc, date)` → `record_id`; writes are **incremental per-cell upsert** (never whole-table snapshot). Header order in §9 is frozen.
+- **10 sheets, names currently random placeholders:** `- AYUDA -`, 6 logical sections, `Registro` (13 cols A:M), `Apoyo` (A3:E3), `Hoja2`. Resolve logical section via `Config!A:B` (sheetId → logical), not hardcoded names.
+- **Input zone:** `E15:AI44` (30 rows) + `Apoyo!A3:E3` (Fecha/Operador/Sección/Código/Motivo). `Registro` PK is `(section, operator_name, date)` → `record_id`, 13 cols `A:M` (`nota`, `is_apoyo`, `status void`), `Nº`/doc ignored. Writes are **incremental per-cell upsert** (never snapshot). Header order §9 frozen.
 - **Calendar is dynamic:** Changing `S7:U7` (year) or `S9:U9` (month) regenerates `E11:AI13` via `V9`/`W7` — but creates **no `Registro` writes** (FR-006). Only `E15:AI44` with valid `E11` date triggers writes.
 
 ## Wiring & verified formulas (locale `es-BO` — Spanish)
@@ -20,9 +20,9 @@
 
 ## Apps Script rules (when `apps-script/` lands)
 - **Installable trigger required** for any `Registro` write (runs as owner). Simple `onEdit` only for toast. View-only anon (`ANONYMOUS_…`, `401` on auth endpoints) cannot write — Playwright confirms this.
-- **Permission + window gate before lock:** `responsible = Config!A:B[section] ?? RESPONSABLE header`; check `activeUser == responsible(section)` **and** `fecha_col ∈ {today, today-1}` in `America/Lima` (`Utilities.formatDate(..., "America/Lima", "yyyy-MM-dd")`). Blocked → toast (`⛔ Solo podés registrar hoy y ayer…` / `⛔ No tenés permiso…`), optional revert, **no `Registro` write**, log to `Errors`. Bulk paste: evaluate per-cell. RRHH override only via `Asistencia → Solicitar corrección / Registro manual` (audited, `via_manual`).
+- **Permission + window gate before lock:** `responsible = Config!A:B[section] ?? RESPONSABLE header`; check `activeUser == responsible(section)` **and** `fecha_col ∈ {today, today-1}` in `America/La_Paz` (`Utilities.formatDate(..., "America/La_Paz", "yyyy-MM-dd")`). Blocked → toast (`⛔ Solo podés registrar hoy y ayer…` / `⛔ No tenés permiso…`), optional revert, **no `Registro` write**, log to `Errors`. Bulk paste: evaluate per-cell. RRHH override only via `Asistencia → Solicitar corrección / Registro manual` (audited, `via_manual`).
 - **Concurrency:** Wrap every `Registro` write with `LockService.getDocumentLock()` (5s timeout, retry once), queue failed via menu.
-- **Timezone:** `America/Lima` (UTC-5, no DST) everywhere — script timezone, timestamps, window calc. Never use browser/UTC date.
+- **Timezone:** `America/La_Paz` (UTC-4, no DST) everywhere — script timezone, timestamps, window calc. Never use browser/UTC date.
 - **No external deps:** `SpreadsheetApp`/`LockService`/`Session`/`Utilities` only. Any `clasp` or tooling goes under project dir (`tools/`), never `/tmp`.
 
 ## Repo conventions

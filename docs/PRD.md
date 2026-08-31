@@ -6,7 +6,7 @@
 | **Author** | [Placeholder — assign owner] |
 | **Date** | 2026-08-31 |
 | **Status** | Draft |
-| **Source** | Google Sheet `1iw9bduLeGXQMbjmMV1qrMqE2WoPWCBz3` (gid `740536758` = Preparacion) |
+| **Source** | Google Sheet `1GrZ_9w3CPvsJ22nVCndFojkhrhGmFGY8XcLQrtW7jTs` (native, converted 2026-08-31 from `1iw9bduLeGXQMbjmMV1qrMqE2WoPWCBz3` xlsx; gid `740536758` = Preparacion) |
 | **Repo** | `/home/luis-cm/Documents/Github/Control-de-Asistencia` |
 | **Evidence** | `docs/playwright-evidence/Preparacion-analysis.md` (playwright-cli 0.1.18) |
 
@@ -48,7 +48,7 @@ Attendance for ~180 operators (6 × 30) lives in 6 identical section sheets. Que
 | RRHH / Admin | HR — consumes `Registro` | Filterable history, audit |
 | Owner / Maintainer | Apps Script owner | Simple deploy, no ext deps |
 
-**Per-section responsible:** Each of 6 logical sections has a different responsible. Mapping `Config!A:B` (`logical section → email`), fallback `RESPONSABLE` header. `responsible = Config(section) ?? headerCell`. Window `today / today-1` (`America/Lima`, FR-013). Older dates → RRHH via `Asistencia → Solicitar corrección / Registro manual` (`via_manual` audited). Physical tab names are currently placeholders (see §5.1); resolution is Config-driven via sheet ID or current tab name → logical section.
+**Per-section responsible:** Each of 6 logical sections has a different responsible. Mapping `Config!A:B` (`logical section → email`), fallback `RESPONSABLE` header. `responsible = Config(section) ?? headerCell`. Window `today / today-1` (`America/La_Paz`, FR-013). Older dates → RRHH via `Asistencia → Solicitar corrección / Registro manual` (`via_manual` audited). Physical tab names are currently placeholders (see §5.1); resolution is Config-driven via sheet ID or current tab name → logical section.
 
 **Permission:** Responsables edit only own logical section within window; out-of-window/cross-section → toast, no write, log `Errors`. RRHH reads `Registro` + override via menu. Writes as owner via **installable trigger** (anon cannot write — §5.3, NFR-04).
 
@@ -136,10 +136,10 @@ Full dump in `docs/playwright-evidence/Preparacion-analysis.md`.
 | **FR-007** | `Apoyo` (`A3:E3` Fecha/Operador/Sección/Código/Motivo — 5 cols) → `Registro` `is_apoyo=TRUE`, `D=Apoyo!C3`, `L=Apoyo!E3`. | Must |
 | **FR-008** | Only `A,AT,BM,F` (and empty) accepted; other → toast, no write. | Must |
 | **FR-009** | One-time backfill: scan 6 logical sections `E15:AI44` where `E11` valid + non-empty → upsert. Idempotent. Handle merged `S7:U7`. | Must |
-| **FR-010** | Every row stores `edited_by` (email or `unknown`) and `edited_at` in `America/Lima`. | Should |
+| **FR-010** | Every row stores `edited_by` (email or `unknown`) and `edited_at` in `America/La_Paz`. | Should |
 | **FR-011** | Menu `Asistencia → Ver Registro / Re-sincronizar / Solicitar corrección / Registro manual / Backfill` (correction bypasses FR-013, audited). | Should |
 | **FR-012** | Mapping `A→Asistencia, F→Falta, AT→Tardanza, BM→Baja Médica` in config, not hardcoded. | Should |
-| **FR-013** | Window + permission: `fecha_col==today OR today-1` Lima (`Utilities.formatDate(new Date(),"America/Lima","yyyy-MM-dd")` from `E11` ISO). Gate: `activeUser==responsible(section)` (`Config!A:B ?? header`) AND `fecha_col∈{today,today-1}`. Blocked → toast `⛔ Solo podés registrar hoy y ayer…`, optional revert, no write, log `Errors`. RRHH override via menu (`via_manual`). Per-cell for bulk. | Must |
+| **FR-013** | Window + permission: `fecha_col==today OR today-1` Lima (`Utilities.formatDate(new Date(),"America/La_Paz","yyyy-MM-dd")` from `E11` ISO). Gate: `activeUser==responsible(section)` (`Config!A:B ?? header`) AND `fecha_col∈{today,today-1}`. Blocked → toast `⛔ Solo podés registrar hoy y ayer…`, optional revert, no write, log `Errors`. RRHH override via menu (`via_manual`). Per-cell for bulk. | Must |
 
 ### 7.2 User Stories
 
@@ -163,7 +163,7 @@ Full dump in `docs/playwright-evidence/Preparacion-analysis.md`.
 | NFR-02 | Quotas | 90 min/day, 20k fetches, 50 MB — no ext calls | Backfill heaviest |
 | NFR-03 | Reliability | `LockService.getDocumentLock()` per write (5s, retry 1). Window before lock | Queue failed via menu |
 | NFR-04 | Permissions | Installable trigger as owner; simple `onEdit` for toast; `Config!A:B` for logical sections | Anon `401` cannot write |
-| NFR-05 | Timezone | `America/Lima` (UTC-5) everywhere — window via `Utilities.formatDate(...,"America/Lima","yyyy-MM-dd")` | Never UTC/browser |
+| NFR-05 | Timezone | `America/La_Paz` (UTC-4) everywhere — window via `Utilities.formatDate(...,"America/La_Paz","yyyy-MM-dd")` | Never UTC/browser |
 | NFR-06 | Maintainability | No npm/pip. `apps-script/` via `clasp`; Spanish formulas verbatim | `tools/` only |
 | NFR-07 | Observability | `Logger` + toast; optional `Errors` sheet | Log `Hoja2`/merged failures |
 | NFR-08 | Data integrity | `Registro` header protected/frozen; `Hoja2` protected | Never reorder cols |
@@ -212,7 +212,7 @@ Full dump in `docs/playwright-evidence/Preparacion-analysis.md`.
 | EC-02 | Month boundaries (blank `E11` `SI.ERROR→""`) | Check `E11` valid; blank→ignore. Normalize `S7:U7`/`S9:U9`; `MAX(E13:AI13)` for length |
 | EC-03 | Operator moves sections | PK includes `section` → two rows (intentional) |
 | EC-04 | Duplicate `operator_name` | Warning + row tiebreaker; don't block others |
-| EC-05 | Timezone & locale | `America/Lima`; Spanish `SI.ERROR`/`BUSCARV`/`DIASEM`/`CONTAR.SI` verbatim |
+| EC-05 | Timezone & locale | `America/La_Paz`; Spanish `SI.ERROR`/`BUSCARV`/`DIASEM`/`CONTAR.SI` verbatim |
 | EC-06 | Concurrent edits | `LockService` (5s, retry 1s → toast + queue) |
 | EC-07 | Per-section permission | `activeUser==responsible(section)` + window; installable as owner; logical sections via Config |
 | EC-08 | Row insert/delete | Resolve operator via col A/B of edited row dynamically |
@@ -232,7 +232,7 @@ Responsable types "F" in Preparacion!G22
    → blocked → toast ⛔ + revert, no write
    → allowed → Lock → findRow→insert/update → toast "✅ Registrado: Juan Pérez — 2026-03-15 = F"
 ```
-Reads via `SpreadsheetApp`/API v4 `valueRenderOption=FORMULA`, never canvas. Window via `Utilities.formatDate(new Date(),"America/Lima","yyyy-MM-dd")`.
+Reads via `SpreadsheetApp`/API v4 `valueRenderOption=FORMULA`, never canvas. Window via `Utilities.formatDate(new Date(),"America/La_Paz","yyyy-MM-dd")`.
 
 ### 11.2 Bulk Paste
 
@@ -290,7 +290,7 @@ Toasts only, no modals on normal edits.
 | Q6 | Weekends S/D? | Recordable — weekends are recordable, `W7` is display-only. |
 | Q7 | Retention? | Infinite — single `Registro` in v1; partitioning only if scale requires. |
 | Q8 | `Apoyo` one vs two rows? | One row with `is_apoyo=TRUE` — avoid duplication. |
-| Q9 | Cutoff time? | `today` and `today-1` (`America/Lima`) — older dates via RRHH menu (`via_manual`). |
+| Q9 | Cutoff time? | `today` and `today-1` (`America/La_Paz`) — older dates via RRHH menu (`via_manual`). |
 | Q10 | Operator master? | Sheets as master v1; central directory deferred. |
 
 ## 14. Next Steps
