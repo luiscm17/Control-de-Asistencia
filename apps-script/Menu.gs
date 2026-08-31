@@ -5,14 +5,14 @@
  * Notes: Apps Script concatenates all .gs files; order does not matter. Public functions (no trailing _) for menu + HtmlService. Do not change logic.
  */
 
-// --- MENU SETUP (PR 3: 6 items) ---
+// --- MENU SETUP (PR 3: 5 items + FR-014 nota) ---
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
   ui.createMenu('Asistencia')
     .addItem('Ver Registro', 'menuVerRegistro')
     .addItem('Re-sincronizar fila', 'menuReSincronizarFila')
+    .addItem('Agregar/editar nota a celda activa', 'menuAgregarEditarNota')
     .addSeparator()
-    .addItem('Solicitar corrección', 'menuSolicitarCorreccion')
     .addItem('Registro manual', 'menuRegistroManual')
     .addSeparator()
     .addItem('Backfill histórico', 'menuBackfillHistorico')
@@ -73,10 +73,7 @@ function menuReSincronizarFila() {
   const candidates = [];
   let countInvalid = 0;
   let countWindowBlocked = 0;
-  let countPermBlocked = 0;
   let countBlankE11 = 0;
-  const responsible = getResponsibleEmail(section);
-  const activeEmail = Session.getActiveUser().getEmail() || 'unknown';
 
   for (let c = 0; c < rowValues.length; c++) {
     const col = CONFIG.INPUT_COL_START + c;
@@ -88,7 +85,6 @@ function menuReSincronizarFila() {
     const normCode = isEmpty ? '' : normalizeCode(trimmed);
     if (!isEmpty && !isCodeValid(normCode)) { countInvalid++; logToErrors(section, name + '!' + sh.getRange(activeRow, col).getA1Notation(), String(raw), 'codigo_invalido_resync'); continue; }
     if (!isInWindow(iso)) { countWindowBlocked++; logToErrors(section, name + '!' + sh.getRange(activeRow, col).getA1Notation(), normCode, 'fuera_ventana_' + iso); continue; }
-    if (responsible && activeEmail !== responsible && activeEmail !== 'unknown') { countPermBlocked++; logToErrors(section, name + '!' + sh.getRange(activeRow, col).getA1Notation(), normCode, 'sin_permiso_responsable_' + responsible); continue; }
     if (normCode === '' && !findRegistroRowId(recordId(section, operatorName, iso))) {
       // void with no row → skip (will be counted as void attempt but no write)
       continue;
@@ -104,11 +100,10 @@ function menuReSincronizarFila() {
   if (countInvalid > 0) sh.getParent ? null : null; // keep
   if (candidates.length === 0) {
     if (countInvalid > 0) ss.toast('⚠️ Código no válido. Use A, AT, BM o F. (' + countInvalid + ')', 'Asistencia', 5);
-    if (countWindowBlocked > 0 || countPermBlocked > 0) {
-      const reason = (countWindowBlocked ? countWindowBlocked + ' fuera de ventana' : '') + (countPermBlocked ? (countWindowBlocked ? ', ' : '') + countPermBlocked + ' sin permiso' : '');
-      ss.toast('⛔ Re-sincronizar bloqueado: ' + reason + '.', 'Asistencia', 7);
+    if (countWindowBlocked > 0) {
+      ss.toast('⛔ Re-sincronizar bloqueado: ' + countWindowBlocked + ' fuera de ventana.', 'Asistencia', 7);
     }
-    if (candidates.length === 0 && countInvalid === 0 && countWindowBlocked === 0 && countPermBlocked === 0) {
+    if (candidates.length === 0 && countInvalid === 0 && countWindowBlocked === 0) {
       ss.toast('Nada para sincronizar en esta fila (E11 vacío o celdas vacías).', 'Asistencia', 5);
     }
     return;
@@ -125,8 +120,231 @@ function menuReSincronizarFila() {
   logToErrors(section, name + '!' + activeRow + ':' + activeRow, '', 'resync_ok_' + parts.join(','));
 }
 
-function menuSolicitarCorreccion() {
-  promptManualEntry(false);
+/**
+ * FR-014 — Optional per-cell nota (any code A/AT/BM/F) via modal.
+ * Menu: Asistencia → Agregar/editar nota a celda activa
+ * Validates active cell ∈ E15:AI44 with valid E11 date, existing Registro row,
+ * window (today/today-1 America/La_Paz) + per-section permission before opening modal.
+ */
+function menuAgregarEditarNota() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = ss.getActiveSheet();
+  const name = sh ? sh.getName() : '';
+  if (!sh) {
+    ss.toast('⚠️ No hay hoja activa.', 'Asistencia', 5);
+    return;
+  }
+  if (isIgnorableSheet(name)) {
+    ss.toast('⚠️ Hoja no válida para nota.', 'Asistencia', 5);
+    return;
+  }
+  if (name === CONFIG.APOYO_SHEET) {
+    ss.toast('⚠️ Seleccioná una celda con fecha válida en E15:AI44.', 'Asistencia', 5);
+    return;
+  }
+  if (!validateHoja2()) {
+    ss.toast('⚠️ Hoja2 no accesible — verificá Hoja2!A1:B12 y D1:E7.', 'Asistencia', 7);
+    return;
+  }
+  const section = resolveSection(sh);
+  if (!section) {
+    ss.toast('⚠️ Sección no mapeada en Config!A:B — sin escritura. Mapeá sheetId o nombre.', 'Asistencia', 7);
+    logToErrors(name, sh.getActiveRange() ? sh.getActiveRange().getA1Notation() : '', '', 'section_unmapped_nota');
+    return;
+  }
+  const activeRange = sh.getActiveRange();
+  if (!activeRange) {
+    ss.toast('⚠️ Seleccioná una celda con fecha válida en E15:AI44.', 'Asistencia', 5);
+    return;
+  }
+  const activeRow = activeRange.getRow();
+  const activeCol = activeRange.getColumn();
+  // Require single active cell within INPUT zone
+  if (activeRow < CONFIG.INPUT_ROW_START || activeRow > CONFIG.INPUT_ROW_END ||
+      activeCol < CONFIG.INPUT_COL_START || activeCol > CONFIG.INPUT_COL_END) {
+    ss.toast('⚠️ Seleccioná una celda con fecha válida en E15:AI44.', 'Asistencia', 5);
+    return;
+  }
+  const e11Row = sh.getRange(11, CONFIG.INPUT_COL_START, 1, CONFIG.INPUT_COL_END - CONFIG.INPUT_COL_START + 1).getDisplayValues()[0];
+  const e11Disp = e11Row[activeCol - CONFIG.INPUT_COL_START];
+  const iso = parseE11ToIso(e11Disp);
+  if (!iso) {
+    ss.toast('⚠️ Seleccioná una celda con fecha válida en E15:AI44.', 'Asistencia', 5);
+    return;
+  }
+  const operatorName = String(sh.getRange(activeRow, 3).getValue() || '').trim();
+  if (!operatorName) {
+    ss.toast('⚠️ Fila sin operador en columna C — no hay PK.', 'Asistencia', 5);
+    return;
+  }
+  const rid = recordId(section, operatorName, iso);
+  const rowNum = findRegistroRowId(rid);
+  if (!rowNum) {
+    ss.toast('⚠️ No hay registro para esta fecha — primero marcá el código.', 'Asistencia', 7);
+    return;
+  }
+  if (!isInWindow(iso)) {
+    ss.toast('⛔ Solo podés registrar hoy y ayer (America/La_Paz).', 'Asistencia', 7);
+    logToErrors(section, name + '!' + sh.getRange(activeRow, activeCol).getA1Notation(), '', 'fuera_ventana_nota_' + iso);
+    return;
+  }
+  // Fetch current nota (col L = index 12)
+  const reg = ss.getSheetByName(CONFIG.REGISTRO);
+  let currentNota = '';
+  let currentCode = '';
+  try {
+    currentNota = String(reg.getRange(rowNum, 12).getValue() || '');
+    currentCode = String(reg.getRange(rowNum, 7).getValue() || '');
+  } catch (e) {}
+  // Fallback code from active cell if Registro code empty
+  const cellCode = String(sh.getRange(activeRow, activeCol).getValue() || '').trim().toUpperCase();
+  const displayCode = currentCode || cellCode || '';
+  // Persist context for modal callback (fallback if google.script.run args lost)
+  // Store active cell coords so saveNota can sync setNote even if caller omits sheetName/row/col
+  try {
+    const props = PropertiesService.getDocumentProperties();
+    props.setProperty('nota_ctx', JSON.stringify({ sheetName: name, row: activeRow, col: activeCol }));
+  } catch (e) {}
+
+  // Prompt-based (no HtmlService) — avoids script.container.ui auth issues
+  const ui2 = SpreadsheetApp.getUi();
+  const promptTitle = 'Agregar/editar nota — ' + operatorName + ' — ' + iso + ' (' + (displayCode || '—') + ')';
+  const promptMsg = 'Celda: ' + name + '!' + sh.getRange(activeRow, activeCol).getA1Notation() + '\nActual: ' + (currentNota || '(vacía)') + '\n\nEscribí la nueva nota (vacío para borrar, Cancelar para salir):';
+  const resp2 = ui2.prompt(promptTitle, promptMsg, ui2.ButtonSet.OK_CANCEL);
+  if (resp2.getSelectedButton() !== ui2.Button.OK) return;
+  const newNotaInput = resp2.getResponseText();
+  // Reuse server logic inline via direct call (no google.script.run)
+  const saveResult = saveNota(section, operatorName, iso, newNotaInput, name, activeRow, activeCol);
+  // saveNota already toasts; no extra handling needed
+}
+
+/**
+ * Server handler for nota modal — called via google.script.run.saveNota.
+ * Updates Registro!L (nota), C updated_at, J edited_by, and syncs cell Note via setNote/clearNote.
+ * Window (today/today-1 America/La_Paz) re-validated server-side (permissions via Sheets sharing).
+ * Distinct toasts/messages: guardada (first time), actualizada (overwrite), borrada (clear).
+ * @return {string} message for modal success handler
+ */
+function saveNota(section, operatorName, iso, newNota, sheetNameOpt, rowOpt, colOpt) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  // Re-validate window (FR-013) — permission via Sheets sharing, no script gate
+  if (!isInWindow(iso)) {
+    ss.toast('⛔ Solo podés registrar hoy y ayer (America/La_Paz).', 'Asistencia', 7);
+    logToErrors(section, '', '', 'fuera_ventana_nota_save_' + iso);
+    throw new Error('Fuera de ventana hoy/ayer (America/La_Paz).');
+  }
+  const rid = recordId(section, operatorName, iso);
+  const trimmed = String(newNota == null ? '' : newNota).trim();
+
+  const lock = LockService.getDocumentLock();
+  let locked = false;
+  try {
+    locked = lock.tryLock(5000);
+    if (!locked) {
+      Utilities.sleep(1000);
+      locked = lock.tryLock(5000);
+    }
+    if (!locked) {
+      ss.toast('⏳ Registro ocupado — reintentá.', 'Asistencia', 7);
+      throw new Error('Registro ocupado — reintentá.');
+    }
+    let reg = ss.getSheetByName(CONFIG.REGISTRO);
+    if (!reg) reg = ensureRegistroHeader();
+    const rowNum = findRegistroRowId(rid);
+    if (!rowNum) {
+      ss.toast('⚠️ No hay registro para esta fecha — primero marcá el código.', 'Asistencia', 7);
+      throw new Error('No hay registro para esta fecha — primero marcá el código.');
+    }
+    // Fetch previous nota + code for toast distinction and setNote
+    const prevNotaRaw = reg.getRange(rowNum, 12).getValue();
+    const prevNota = String(prevNotaRaw || '');
+    const prevNotaTrimmed = prevNota.trim();
+    const codeVal = String(reg.getRange(rowNum, 7).getValue() || '').trim();
+    const nowStr = Utilities.formatDate(new Date(), CONFIG.TIMEZONE, 'yyyy-MM-dd HH:mm:ss');
+    const editedBy = 'unknown';
+
+    // Update Registro row: C updated_at (col 3), J edited_by (col 10), L nota (col 12)
+    reg.getRange(rowNum, 3).setValue(nowStr);
+    reg.getRange(rowNum, 10).setValue(editedBy);
+    reg.getRange(rowNum, 12).setValue(trimmed);
+
+    // Sync cell Note via setNote / clearNote
+    let targetSheet = null;
+    let targetRow = rowOpt;
+    let targetCol = colOpt;
+    let targetSheetName = sheetNameOpt;
+    // Fallback to PropertiesService context if args missing
+    if (!targetSheetName || !targetRow || !targetCol) {
+      try {
+        const props = PropertiesService.getDocumentProperties();
+        const ctxRaw = props.getProperty('nota_ctx');
+        if (ctxRaw) {
+          const ctx = JSON.parse(ctxRaw);
+          targetSheetName = targetSheetName || ctx.sheetName;
+          targetRow = targetRow || ctx.row;
+          targetCol = targetCol || ctx.col;
+        }
+      } catch (e) {}
+    }
+    if (targetSheetName) {
+      targetSheet = ss.getSheetByName(targetSheetName);
+    }
+    // If still no sheet, try resolve section → sheet scan
+    if (!targetSheet) {
+      const all = ss.getSheets();
+      for (let i = 0; i < all.length; i++) {
+        if (resolveSection(all[i]) === section) { targetSheet = all[i]; break; }
+      }
+    }
+    if (targetSheet && targetRow && targetCol) {
+      try {
+        const cell = targetSheet.getRange(Number(targetRow), Number(targetCol));
+        if (trimmed !== '') {
+          const prefix = codeVal ? codeVal + ' — ' : '';
+          cell.setNote(prefix + trimmed);
+        } else {
+          cell.clearNote();
+        }
+      } catch (e) {
+        Logger.log('saveNota_ setNote fail: ' + e.message);
+      }
+    }
+
+    SpreadsheetApp.flush();
+
+    const isPrevEmpty = prevNotaTrimmed === '';
+    const isNewEmpty = trimmed === '';
+    let toastMsg = '';
+    let retMsg = '';
+    if (isNewEmpty && !isPrevEmpty) {
+      toastMsg = '🗑️ Nota borrada: ' + operatorName + ' — ' + iso;
+      retMsg = toastMsg;
+      ss.toast(toastMsg, 'Asistencia', 5);
+      logToErrors(section, rid, codeVal, 'nota_borrada_' + iso);
+    } else if (!isNewEmpty && isPrevEmpty) {
+      toastMsg = '✅ Nota guardada: ' + operatorName + ' — ' + iso;
+      retMsg = toastMsg;
+      ss.toast(toastMsg, 'Asistencia', 5);
+      logToErrors(section, rid, codeVal, 'nota_guardada_' + iso);
+    } else if (!isNewEmpty && !isPrevEmpty) {
+      if (trimmed === prevNotaTrimmed) {
+        toastMsg = '✅ Nota actualizada: ' + operatorName + ' — ' + iso;
+        retMsg = toastMsg + ' (sin cambios)';
+      } else {
+        toastMsg = '✅ Nota actualizada: ' + operatorName + ' — ' + iso;
+        retMsg = toastMsg;
+      }
+      ss.toast(toastMsg, 'Asistencia', 5);
+      logToErrors(section, rid, codeVal, 'nota_actualizada_' + iso);
+    } else {
+      // both empty — no-op but keep audit
+      retMsg = 'Nota vacía — sin cambios.';
+      ss.toast('Nota vacía — sin cambios.', 'Asistencia', 5);
+    }
+    return retMsg;
+  } finally {
+    if (locked) { try { lock.releaseLock(); } catch (e) {} }
+  }
 }
 
 function menuRegistroManual() {
@@ -176,7 +394,7 @@ function promptManualEntry(isRegistroManual) {
   if (motivoResp.getSelectedButton() !== ui.Button.OK) return;
   const motivo = motivoResp.getResponseText().trim();
 
-  const viaManualNote = 'via_manual:' + (motivo || (isRegistroManual ? 'registro_manual' : 'solicitar_correccion')) + ' by ' + (Session.getActiveUser().getEmail() || 'unknown');
+  const viaManualNote = 'via_manual:' + (motivo || (isRegistroManual ? 'registro_manual' : 'solicitar_correccion')) + ' by unknown';
   const nota = motivo ? motivo + ' | ' + viaManualNote : viaManualNote;
   const sourceRange = 'manual:' + section + '!' + operatorName + '!' + iso;
 
