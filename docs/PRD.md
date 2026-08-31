@@ -2,10 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.2.1 — Draft, updated with controlled window (today+1) |
+| **Version** | 0.2.3 — Draft, Registro 13 cols (sin H/K/L/doc/section_apoyo), Q1 RESOLVED void, Apoyo 5 cols → D uniforme |
 | **Author** | [Placeholder — assign owner] |
 | **Date** | 2026-08-30 |
-| **Status** | Draft — updated with controlled window (today+1) |
+| **Status** | Draft — updated 2026-08-31: Registro 13 cols (H/K/L/doc/section_apoyo removed, nota added), Apoyo 5 cols (Fecha/Operador/Sección/Código/Motivo) → D uniforme, Q1 void, Tabla manual out-of-scope |
 | **Source** | Google Sheet `1iw9bduLeGXQMbjmMV1qrMqE2WoPWCBz3` (gid `740536758` = Preparacion) |
 | **Repo** | `/home/luis-cm/Documents/Github/Control-de-Asistencia` |
 | **Evidence** | `docs/playwright-evidence/Preparacion-analysis.md` (playwright-cli 0.1.18) |
@@ -43,8 +43,8 @@ Attendance for ~180 operators (6 sections × 30) is recorded manually in Google 
 
 Retain the 6 section sheets as the **input UX** (no retraining). Add an Apps Script layer that on every valid edit (`A`/`AT`/`BM`/`F`) in the range `E15:AI44` of any section sheet:
 
-1. Resolves operator identity + date + weekday + section (via verified Spanish formulas — §5.2).
-2. Upserts a single row in `Registro` keyed by `(section, operator_doc, date)` — idempotent, guarded by `LockService`.
+1. Resolves operator identity + date + section (via verified Spanish formulas — §5.2; weekday/month/year derived only for window calc, not stored).
+2. Upserts a single row in `Registro` keyed by `(section, operator_name, date)` — idempotent, guarded by `LockService` (`Nº`/`doc` ignored per stakeholder 2026-08-31).
 3. Handles clears, bulk pastes, month changes, and `Apoyo` without duplication.
 
 `Registro` becomes the normalized, queryable DB. Section sheets remain the human-friendly calendar view. Playwright evidence confirms DOM scraping is not viable — the integration must use `onEdit` + Sheets API v4 (§5.3, §6).
@@ -243,13 +243,13 @@ All evidence under `docs/playwright-evidence/`. See Appendix D for repro steps.
 
 | ID | Requirement | Priority |
 |----|-------------|----------|
-| **FR-001** | On any edit in `E15:AI44` of any of the 6 section sheets, the script captures `(section, operator_doc, operator_name, date, weekday, code, month, year, edited_by, timestamp, source_range)` and upserts into `Registro` **only after passing the controlled-window + ownership gate (FR-013)**. Date/weekday resolved via `E11:AI11` (`=+E13&"/"&$V$9&"/"&$S$7`) and `E12:AI12` (`=+SI.ERROR(BUSCARV(DIASEM(...),Hoja2!D1:E7,2,FALSO),"")`). Validation gate: `activeUser == responsible(section)` (from `Config!A:B` or `RESPONSABLE` header) **AND** `fecha_col == today OR today-1` in `America/Lima`. If gate fails → toast + optional revert, **no `Registro` write** (see FR-013, EC-11). | Must |
+| **FR-001** | On any edit in `E15:AI44` of any of the 6 section sheets, the script captures `(section, operator_name, date, code, edited_by, timestamp, source_range, is_apoyo, nota, status)` and upserts into `Registro` **only after passing the controlled-window + ownership gate (FR-013)**. Date resolved via `E11:AI11` (`=+E13&"/"&$V$9&"/"&$S$7`); `operator_doc`/`weekday`/`month`/`year`/`section_apoyo` are **not persisted** (H/K/L/doc/section_apoyo removed per stakeholder 2026-08-31 — `Nº` column ignored, `Apoyo!C3 Sección → D section` uniforme, Tabla conversion manual out-of-scope). Validation gate: `activeUser == responsible(section)` (from `Config!A:B` or `RESPONSABLE` header) **AND** `fecha_col == today OR today-1` in `America/Lima`. If gate fails → toast + optional revert, **no `Registro` write** (see FR-013, EC-11). | Must |
 | **FR-002** | `Registro` schema is fixed (see §9). Columns are never reordered by the script; header row is created once and frozen. | Must |
-| **FR-003** | If the edited cell is cleared (empty), the corresponding `Registro` row is **deleted** (or marked `void` — decision in §13 Q1). No orphan rows remain. Blank is explicitly allowed (validation permits empty). | Must |
+| **FR-003** | If the edited cell is cleared (empty), the corresponding `Registro` row is **marked `void`** (`status=void` — §13 Q1 RESOLVED 2026-08-31, soft-delete). No orphan rows remain `active`. Blank is explicitly allowed (validation permits empty). | Must |
 | **FR-004** | If the user corrects a cell (e.g., `F` → `A`), the existing `Registro` row is **updated** in place (same primary key), `updated_at` refreshed, not duplicated. | Must |
 | **FR-005** | Bulk paste (multi-cell range) is handled atomically: each cell in the intersection of the pasted range with `E15:AI44` and with a valid date column (`E11` has date, `SI.ERROR` not blank) is processed individually. One toast summarizes `N inserted / M updated / K deleted`. | Must |
 | **FR-006** | Changing `S7:U7` (year) or `S9:U9` (month) — which regenerates `E11:AI13` and recomputes `V9`/`W7` — does **not** create or delete `Registro` rows. Only edits inside `E15:AI44` trigger writes. Calendar regen is ignored. | Must |
-| **FR-007** | `Apoyo` sheet edits are also captured into `Registro` with `is_apoyo = TRUE` and `section_apoyo` (destination section) populated. Original section assignment is preserved. | Must |
+| **FR-007** | `Apoyo` sheet (`A3:E3` = `Fecha, Operador, Sección, Código, Motivo` — 5 cols) edits are also captured into `Registro` with `is_apoyo = TRUE` and uniform `D=section = Apoyo!C3 Sección`; `L=nota = Apoyo!E3 Motivo`. No `section_apoyo` column — `Apoyo!C3` va directo a `D` para uniformidad. | Must |
 | **FR-008** | Only codes `A`, `AT`, `BM`, `F` (and empty for delete) are accepted. Any other value is rejected with an error toast and no `Registro` write. Validation mirrors the data-validation rule in `E15:AI44` (verified via `streamrows`: 4 entries + `ARRAYFORMULA` validator). | Must |
 | **FR-009** | One-time **historical backfill**: on deployment, scan all existing marks in the 6 sheets (`E15:AI44` where `E11` has a valid date and cell is non-empty) and upsert into `Registro`. Idempotent — re-running produces no duplicates. Must handle `S7:U7` merged ranges when reading year. | Must |
 | **FR-010** | Every `Registro` row stores `edited_by` (Session.getActiveUser email) and `edited_at` timestamp in `America/Lima` timezone. If email is unavailable (permission), store `unknown` and log warning. | Should |
@@ -294,35 +294,31 @@ All evidence under `docs/playwright-evidence/`. See Appendix D for repro steps.
 
 | # | Column | Type | Example | Description |
 |---|--------|------|---------|-------------|
-| A | `record_id` | `STRING` | `PREP-001-2026-03-15` | Derived PK: `section-operator-date`. Stable, human-readable. |
+| A | `record_id` | `STRING` | `PREP-001-2026-03-15` | Derived PK: `section-operator_name-date` ( `Nº`/`doc` ignored per stakeholder 2026-08-31 — PK uses `operator_name`). Stable, human-readable. |
 | B | `created_at` | `DATETIME` | `2026-08-30 14:22:05` | First insert timestamp (America/Lima) |
 | C | `updated_at` | `DATETIME` | `2026-08-30 15:00:12` | Last update timestamp |
-| D | `section` | `ENUM` | `Preparacion` | One of the 6 section names (exact sheet name) |
-| E | `operator_doc` | `STRING` | `12345678` | DNI / doc number from column A or B of section sheet (to confirm) |
-| F | `operator_name` | `STRING` | `Juan Pérez` | Full name from section sheet |
-| G | `date` | `DATE` | `2026-03-15` | ISO date from `E11:AI11` for that column (`=+E13&"/"&$V$9&"/"&$S$7`) |
-| H | `weekday` | `STRING` | `S` | Weekday letter from `E12:AI12` (`SI.ERROR(BUSCARV(DIASEM(...),Hoja2!D1:E7,2,FALSO),"")`) — `L/M/X/J/V/S/D` |
-| I | `code` | `ENUM` | `F` | `A` / `AT` / `BM` / `F` |
-| J | `code_label` | `STRING` | `Falta` | Human label via mapping (for filtering without lookup) |
-| K | `month` | `NUMBER` | `3` | Month number (1–12) derived from `V9` (`BUSCARV` on `S9:U9`) |
-| L | `year` | `NUMBER` | `2026` | Year derived from `S7:U7` (merged) |
-| M | `is_apoyo` | `BOOLEAN` | `FALSE` | `TRUE` if row originated from `Apoyo` sheet |
-| N | `section_apoyo` | `STRING` | `` | Destination section when `is_apoyo=TRUE`; empty otherwise |
-| O | `edited_by` | `STRING` | `resp.prep@factory.pe` | Active user email or `unknown` (anon case) |
-| P | `source_range` | `STRING` | `Preparacion!G22` | A1 notation of source cell for traceability |
-| Q | `status` | `ENUM` | `active` | `active` / `void` — only if soft-delete chosen (see §13 Q1) |
+| D | `section` | `ENUM` | `Preparacion` | One of the 6 section names (exact sheet name). Uniform: for `Apoyo` rows, `D = Apoyo!C3 Sección` (no `section_apoyo` column). |
+| E | `operator_name` | `STRING` | `Juan Pérez` | Full name from section sheet (col B) or `Apoyo!B3 Operador`; `Nº` (col C `Documento`) is ignored and not stored. |
+| F | `date` | `DATE` | `2026-03-15` | ISO date from `E11:AI11` for that column (`=+E13&"/"&$V$9&"/"&$S$7`) or `Apoyo!A3 Fecha` |
+| G | `code` | `ENUM` | `F` | `A` / `AT` / `BM` / `F` (`Apoyo!D3 Código`, default `A`) |
+| H | `code_label` | `STRING` | `Falta` | Human label via mapping (for filtering without lookup) |
+| I | `is_apoyo` | `BOOLEAN` | `FALSE` | `TRUE` if row originated from `Apoyo` sheet (`Apoyo!A3:E3`) |
+| J | `edited_by` | `STRING` | `resp.prep@factory.pe` | Active user email or `unknown` (anon case) |
+| K | `source_range` | `STRING` | `Preparacion!G22` or `Apoyo!A4` | A1 notation of source cell/row for traceability |
+| L | `nota` | `STRING` | `apoyo en conera 4` | Free text from `Apoyo!E3 Motivo`; empty for normal rows |
+| M | `status` | `ENUM` | `active` | `active` / `void` — soft-delete per §13 Q1 RESOLVED 2026-08-31 (clearing a cell/row sets `void`, never hard-deletes) |
 
-> **Column order is fixed.** Adding future columns appends to the right (R, S, …).
+> **Column order is fixed at 13 cols (A:M).** Adding future columns appends to the right (N, O, …). `weekday`/`month`/`year`/`operator_doc`/`section_apoyo` (former H/K/L/doc/J) are **not stored** — derive `weekday`/`month` from `F` (`date`) via `DIASEM`/`MONTH` or Tabla filters; `Nº` (col C Documento) ignored; `Apoyo!C3 Sección → D section` uniforme. Tabla conversion manual and out-of-scope for SDD/App Script (stakeholder 2026-08-31).
 
-> **Storage model (confirmed — incremental upsert, stakeholder 2026-08-30):** The section sheet is a **whole-month view** (regenerated when `S9:U9`/`S7:U7` changes), but Apps Script **saves only the mark(s) that actually changed** — one incremental `upsert` per edited cell in `E15:AI44` that passes the window/permission gate. No whole-table snapshot is ever written. `Registro` is the long-term DB with `month` (K) and `year` (L) per row for filtering; any month view is **reconstructed via `FILTER` / `QUERY` by `month`+`year`** (e.g. `=FILTER(Registro!A:Q, Registro!K:K=V9, Registro!L:L=S7, Registro!D:D="Preparacion")`), not by copying the sheet. Month change (FR-006 / S9) regenerates the grid but triggers **no writes**.
+> **Storage model (confirmed — incremental upsert, stakeholder 2026-08-30; amended 2026-08-31):** The section sheet is a **whole-month view** (regenerated when `S9:U9`/`S7:U7` changes), but Apps Script **saves only the mark(s) that actually changed** — one incremental `upsert` per edited cell in `E15:AI44` that passes the window/permission gate. No whole-table snapshot is ever written. `Registro` is the long-term DB with `F` (`date`) as canonical temporal key (13 cols `A:M`, without stored `weekday`/`month`/`year`/`doc`/`section_apoyo`); any month view is **reconstructed via `FILTER` / `QUERY` by `F` date range** (e.g. `=FILTER(Registro!A:M, Registro!F:F>=DATE(2026,9,1), Registro!F:F<=DATE(2026,9,30), Registro!D:D="Preparacion")`). `Apoyo` is a separate 5-col log (`A3:E3` Fecha/Operador/Sección/Código/Motivo) → uniform `D section`, `L nota`. Manual conversion of `Registro` to a Google Sheets Tabla for UI filtering is **out-of-scope** — stakeholder will do it manually. Month change (FR-006 / S9) regenerates the grid but triggers **no writes**.
 
 ### 9.2 Primary Key & Indexes
 
 | Constraint | Definition |
 |------------|------------|
-| **Primary Key** | `(section, operator_doc, date)` — or equivalently `record_id`. Uniqueness enforced by script (lookup before insert). No native sheet PK; script does `findRow(PK) → update else append`. |
-| **Secondary indexes (logical)** | Filter views / query patterns expected: `by operator_doc`, `by section + month`, `by code`, `by date range`. Implemented as Google Sheets filter views, not physical indexes. |
-| **Deduplication** | Before insert, scan `Registro` for existing `record_id`. If found → update `code`, `updated_at`, `edited_by`, `source_range`. If not found → append. |
+| **Primary Key** | `(section, operator_name, date)` — or equivalently `record_id` (`Nº`/`doc` ignored per stakeholder 2026-08-31). Uniqueness enforced by script (lookup before insert); `Apoyo` rows also use `(section=Apoyo!C3, operator_name, date)`. No native sheet PK; script does `findRow(PK) → update else append`. |
+| **Secondary indexes (logical)** | Filter views / query patterns expected: `by operator_name`, `by section + date range (F)`, `by code`, `by date`, `by is_apoyo`. Implemented as Google Sheets filter views / Tabla filters (manual), not physical indexes. `month`/`weekday`/`nota` filters derive from `F`/`L` at query time. |
+| **Deduplication** | Before insert, scan `Registro` for existing `record_id`. If found → update `code`/`code_label`, `updated_at`, `edited_by`, `source_range`, `nota` (reactivate `status=active` if was `void`). If not found → append. |
 
 ### 9.3 Storage Estimate
 
@@ -335,10 +331,10 @@ All evidence under `docs/playwright-evidence/`. See Appendix D for repro steps.
 
 | # | Edge Case | Rule |
 |---|-----------|------|
-| **EC-01** | **Weekends S/D** — columns where `E12`= `S` or `D` (`SI.ERROR`/`BUSCARV`/`DIASEM` lookup) | Still recordable if a code is entered (factory may work Saturdays). Do not auto-exclude. `W7 = CONTAR.SI($E$12:$AI$12,"S")+CONTAR.SI($E$12:$AI$12,"D")` exclusion in `AJ15:AM15` is display-only. If `Hoja2!D1:E7` is missing, `E12:AI12` blanks via `SI.ERROR` → `W7` undercounts → `%` denominator `MAX($E$13:$AI$13)-$W$7` inflates. Guard: validate `Hoja2!D1:E7` exists on open; log error if weekday lookup returns `""` for a valid `E11` date. Confirm if S/D should be flagged with `is_weekend`. |
+| **EC-01** | **Weekends S/D** — columns where `E12`= `S` or `D` (`SI.ERROR`/`BUSCARV`/`DIASEM` lookup) | Still recordable if a code is entered (factory may work Saturdays). Do not auto-exclude. `W7 = CONTAR.SI($E$12:$AI$12,"S")+CONTAR.SI($E$12:$AI$12,"D")` exclusion in `AJ15:AM15` is display-only. If `Hoja2!D1:E7` is missing, `E12:AI12` blanks via `SI.ERROR` → `W7` undercounts → `%` denominator `MAX($E$13:$AI$13)-$W$7` inflates. Guard: validate `Hoja2!D1:E7` exists on open; log error if weekday lookup returns `""` for a valid `E11` date. No `is_weekend` column is stored (H removed); weekend analysis derives from `G` (`weekday = DIASEM(G,2)`) or Tabla filter at query time. |
 | **EC-02** | **Month boundaries** — Feb has 28/29 days; columns beyond month length have blank `E11` (`E11:AI11 = +E13&"/"&$V$9&"/"&$S$7` + `SI.ERROR` blank) | Script checks `E11` for a valid date before processing that column. Blank `E11` (e.g. `31/09` → `SI.ERROR` → `""`) → ignore cell entirely. `V9` (`BUSCARV(S9:U9,Hoja2!A1:B12,2,FALSO)`) and `S7:U7` merged year must be read with merged-range normalization (`trim`, accept `S7:U7` notation). `MAX($E$13:$AI$13)` supplies month length — do not hard-code 30/31. |
-| **EC-03** | **Operator moves between sections** | PK includes `section`, so same `operator_doc` on different section + same date creates **two rows** (one per section). This is intentional — reflects physical assignment. If operator permanently moves, old rows stay under old section for history. |
-| **EC-04** | **Duplicate operator_doc within same section** | Treat as data error — log warning, use row number as tiebreaker, surface in `Errors` log. Do not block other rows. |
+| **EC-03** | **Operator moves between sections** | PK includes `section`, so same `operator_name` on different section + same date creates **two rows** (one per section). This is intentional — reflects physical assignment (`Nº`/`doc` ignored, identity is `operator_name` per §9). If operator permanently moves, old rows stay under old section for history. |
+| **EC-04** | **Duplicate operator_name within same section** | Treat as data error — log warning, use row number as tiebreaker, surface in `Errors` log. Do not block other rows. (`operator_doc`/`Nº` ignored per stakeholder 2026-08-31 — duplicates judged by `operator_name`.) |
 | **EC-05** | **Timezone & locale** | All timestamps use `America/Lima`. Script timezone must be set to `America/Lima` in Project Settings. Formulas use Spanish locale (`es-BO`): `SI.ERROR`/`BUSCARV`/`DIASEM`/`CONTAR.SI` — script must not push English equivalents without conversion. Bogotá is same UTC-5 — no conversion needed, but canonical zone is Lima. |
 | **EC-06** | **Concurrent edits** | `LockService.getDocumentLock()` wraps every `Registro` write. If lock acquisition fails, retry once after 1s, then show error toast and queue for manual retry via menu. Playwright cannot observe contention as anon — test with two authenticated editors on a staging copy. |
 | **EC-07** | **Permissions — per-section responsible (RESOLVED)** | Each section has **one responsible** (`Config!A:B` `section→email`, fallback `RESPONSABLE` header cell). Editor must satisfy `activeUser == responsible(section)` **and** the grace window (FR-013/EC-11). **Installable trigger (owner)** is still required for the `Registro` write; simple `onEdit` provides the toast. If `Session.getActiveUser()` returns empty (anonymous/view-only — Playwright confirms `ANONYMOUS_…` + `401`), store `unknown`, block the write, and toast to request authenticated edit. Cross-section edit (wrong section) → toast `⛔ No tenés permiso para esta sección.` + no write (RRHH override via `Solicitar corrección` menu only). Server-side enforcement of `A/AT/BM/F` remains even when client validation toasts are invisible. |
@@ -388,7 +384,7 @@ onEdit fires → validates: sheet ∈ allowlist, range ∩ E15:AI44,
 
 ### 11.3 Clear / Delete
 
-- Empty cell (blank allowed by validation) → lookup `record_id` → if found, delete row (or set `status=void` per §13 Q1) → toast `"🗑️ Registro eliminado: …"`.
+- Empty cell (blank allowed by validation) → lookup `record_id` → if found, set `status=void` (soft-delete per §13 Q1 RESOLVED 2026-08-31) → toast `"🗑️ Registro pasado a void: …"`.
 - No-op if no existing row.
 
 ### 11.4 Error Handling
@@ -437,13 +433,13 @@ Silent by default — toasts are the only interruption. No modal dialogs on norm
 
 ## 13. Open Questions — Require Stakeholder Decision Before Spec
 
-> **Blocking:** Q1–Q5 must be resolved before `sdd-spec` (Q5 now **RESOLVED** 2026-08-30 — per-section; Q9 also RESOLVED — today+1). Q6–Q10 can be decided during design (Q6 remains OPEN — weekends stay recordable).
+> **Blocking:** Q1–Q5 must be resolved before `sdd-spec` (Q1 **RESOLVED 2026-08-31 — soft-delete `void`**, Q5 **RESOLVED** 2026-08-30 — per-section; Q9 also RESOLVED — today+1). Q6–Q10 can be decided during design (Q6 remains OPEN — weekends stay recordable). Registro scope amended 2026-08-31: 13 cols (H/K/L/doc/section_apoyo removed, nota added; Apoyo 5 cols → D uniforme), Tabla conversion manual out-of-scope.
 
 | # | Question | Context | Options | Recommendation |
 |---|----------|---------|---------|----------------|
-| **Q1** | Should clearing a cell **delete** the `Registro` row or mark it `void`? | Determines audit completeness. | A) Hard delete (simpler, fewer rows). B) Soft delete `status=void` (audit trail, never lose history). | **B — soft delete** if audit matters; A if sheet size is concern. |
+| **Q1 — RESOLVED (2026-08-31)** | Should clearing a cell **delete** the `Registro` row or mark it `void`? | ✅ Stakeholder confirmed: **soft-delete `void`** — clearing a cell sets `Registro!M=status=void` (never hard-deletes), preserving audit. Re-inserting same PK reactivates to `active`. | A) Hard delete. **B) Soft delete `status=void` — SELECTED.** | **RESOLVED → B (void).** See FR-003, §9.1 col M. |
 | **Q2** | Is `Registro` **append-only audit** (every change = new row) or **mutable latest-state** (one row per PK, updated)? | Affects PK design and history queries. | A) Mutable (one row/PK, `updated_at`). B) Append-only (every edit = new row with version). | **A — mutable** for v1 (simpler reporting). Append-only is v2 if full history needed. |
-| **Q3** | What is the **canonical operator identity** — DNI in column A, name in column B, or both? | PK uses `operator_doc`. Verified grid is `E15:AI44`; identity columns are A/B to left of frozen pane `left:412px`. | Need to inspect actual column layout (A/B/C) via Sheets API `spreadsheets.get` (not canvas). | Confirm which column holds DNI/doc. |
+| **Q3 — RESOLVED (2026-08-31)** | What is the **canonical operator identity** — DNI in column A, name in column B, or both? | ✅ Stakeholder confirmed: **operator_name (col B name) is canonical** — `Nº`/`doc` (col C `Documento`) is ignored and not stored per §9. PK is `(section, operator_name, date)`. | A) `Nº`/DNI. **B) `operator_name` — SELECTED.** | **RESOLVED → B.** See §9.1 col E, EC-04. |
 | **Q4** | Should `AJ:AM` summary `%` formulas (`CONTAR.SI`/`MAX`-`W7`) be **kept, replaced, or dual-maintained**? | Formulas verified as `=+CONTAR.SI($E15:$AI15,AJ$10)/(MAX($E13:$AI13)-$W$7)` with `W7=CONTAR.SI(S)+CONTAR.SI(D)` — fragile but familiar. | A) Keep as-is. B) Compute in script and write values. C) Keep formulas + add `Registro`-based summary sheet. | **A for v1, C for v2** — don't touch formulas until `Registro` is stable. |
 | **Q5 — RESOLVED (2026-08-30)** | Who can edit which section? Is there a **per-section permission** requirement? | ✅ Stakeholder confirmed: **yes, per-section** — each of the 6 sections has a different responsible (`Config!A:B` `section→email`, fallback `RESPONSABLE` header). `Config` is source of truth; cross-section edits blocked (FR-013/EC-07). | A) Anyone with sheet access can edit any section. **B) Per-section editors enforced — SELECTED.** | **RESOLVED → B.** Enforce via `Config!A:B` + header; protected ranges optional hardening. See FR-013, EC-07, §4. |
 | **Q6 — OPEN (weekends remain open)** | How should **weekends (S/D)** be treated — excludable, flaggable, or normal? | `W7` (`CONTAR.SI` S/D) suggests Sundays/Saturdays excluded from denominator; `SI.ERROR` blank on invalid dates complicates. Stakeholder 2026-08-30: **no decision needed — weekends remain recordable** (factory may work Saturdays). | A) Normal (record if entered). B) Flag `is_weekend` column. C) Block entry on S/D. | **Remains OPEN → A + optional flag** — don't block entry; keep EC-01 behavior; add `is_weekend` only if reporting needs it. |
