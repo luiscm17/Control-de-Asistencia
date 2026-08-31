@@ -39,6 +39,6 @@ const CONFIG = {
   ],
   ERRORS_HEADER: ['timestamp', 'section', 'range', 'code', 'reason', 'user'],
   CONFIG_HEADER: ['key', 'value'],
-  TIMEZONE: 'America/Lima',
+  TIMEZONE: 'America/La_Paz',
   LOGICAL_SECTIONS: ['Preparacion', 'Continua', 'Acoplado', 'Retorcedoras', 'Madejeras', 'Producto Terminado']
 };

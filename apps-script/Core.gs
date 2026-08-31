@@ -113,7 +113,7 @@ function handleEdit(e) {
         if (countPermBlocked > 0) {
           ss.toast('⛔ No tenés permiso para esta sección. (' + reason + ')', 'Asistencia', 7);
         } else {
-          ss.toast('⛔ Solo podés registrar hoy y ayer (America/Lima). (' + reason + ')', 'Asistencia', 7);
+          ss.toast('⛔ Solo podés registrar hoy y ayer (America/La_Paz). (' + reason + ')', 'Asistencia', 7);
         }
       }
       return;

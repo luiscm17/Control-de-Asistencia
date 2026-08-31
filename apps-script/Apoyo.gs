@@ -101,7 +101,7 @@ function handleApoyoEdit(e, viaManual) {
   const bypass = viaManual === true;
   if (!bypass) {
     if (!isInWindow(iso)) {
-      ss.toast('⛔ Solo podés registrar hoy y ayer (America/Lima). Apoyo fecha ' + iso + ' fuera de ventana — usá Solicitar corrección.', 'Asistencia', 7);
+      ss.toast('⛔ Solo podés registrar hoy y ayer (America/La_Paz). Apoyo fecha ' + iso + ' fuera de ventana — usá Solicitar corrección.', 'Asistencia', 7);
       logToErrors(seccion, CONFIG.APOYO_RANGE, normCode, 'fuera_ventana_apoyo_' + iso);
       return;
     }
