@@ -48,7 +48,7 @@ function handleEdit(e) {
     if (r1 > r2 || c1 > c2) return;
 
     const e11Row = sheet.getRange(11, CONFIG.INPUT_COL_START, 1, CONFIG.INPUT_COL_END - CONFIG.INPUT_COL_START + 1).getDisplayValues()[0];
-    const operatorRows = sheet.getRange(CONFIG.INPUT_ROW_START, 2, CONFIG.INPUT_ROW_END - CONFIG.INPUT_ROW_START + 1, 1).getValues();
+    const operatorRows = sheet.getRange(CONFIG.INPUT_ROW_START, 1, CONFIG.INPUT_ROW_END - CONFIG.INPUT_ROW_START + 1, 1).getValues();
     const editedValues = sheet.getRange(r1, c1, r2 - r1 + 1, c2 - c1 + 1).getValues();
 
     const allowed = [];
@@ -183,7 +183,7 @@ function doBackfill(bypassWindow) {
 
     // Batch reads: E11 row, operator names B15:B44, input zone E15:AI44
     const e11Row = sh.getRange(11, CONFIG.INPUT_COL_START, 1, CONFIG.INPUT_COL_END - CONFIG.INPUT_COL_START + 1).getDisplayValues()[0];
-    const operatorRows = sh.getRange(CONFIG.INPUT_ROW_START, 2, CONFIG.INPUT_ROW_END - CONFIG.INPUT_ROW_START + 1, 1).getValues();
+    const operatorRows = sh.getRange(CONFIG.INPUT_ROW_START, 1, CONFIG.INPUT_ROW_END - CONFIG.INPUT_ROW_START + 1, 1).getValues();
     const inputValues = sh.getRange(CONFIG.INPUT_ROW_START, CONFIG.INPUT_COL_START, CONFIG.INPUT_ROW_END - CONFIG.INPUT_ROW_START + 1, CONFIG.INPUT_COL_END - CONFIG.INPUT_COL_START + 1).getValues();
     const responsible = getResponsibleEmail(section);
 
