@@ -2,10 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.3.4 |
+| **Version** | 0.3.5 |
 | **Author** | [Placeholder — assign owner] |
 | **Date** | 2026-08-31 |
-| **Status** | Draft - month change reload |
+| **Status** | Draft - scalable attendance sheets |
 | **Source** | Google Sheet `1GrZ_9w3CPvsJ22nVCndFojkhrhGmFGY8XcLQrtW7jTs` (native, converted 2026-08-31 from `1iw9bduLeGXQMbjmMV1qrMqE2WoPWCBz3` xlsx; gid `740536758` = Preparacion) |
 | **Repo** | `/home/luis-cm/Documents/Github/Control-de-Asistencia` |
 | **Evidence** | `docs/playwright-evidence/Preparacion-analysis.md` (playwright-cli 0.1.18) |
@@ -14,30 +14,30 @@
 
 ## 1. Quick Path
 
-1. **Problem:** 6 cloned section sheets — no central DB, no audit, no reporting.
-2. **Decision:** Keep 6 sheets as entry. Centralize every mark into `Registro` via Apps Script `onEdit` + Sheets API v4 (not DOM scraping — §5.3/§6).
+1. **Problem:** N cloned attendance sheets (initially 6) — no central DB, no audit, no reporting.
+2. **Decision:** Keep N attendance sheets as entry. Centralize every mark into `Registro` via Apps Script `onEdit` + Sheets API v4 (not DOM scraping — §5.3/§6).
 3. **Verify:** After PRD approval → SDD `propose → spec → design → tasks` (§14).
 
 ## 2. Executive Summary
 
-Attendance for ~180 operators (6 × 30) lives in 6 identical section sheets. Querying "all absences for X in March" requires opening all 6. `Registro` exists but is empty.
+Attendance for ~180 operators (initially 6 × 30, scalable to N sheets) lives in N identical attendance sheets. Querying "all absences for X in March" requires opening all N. `Registro` exists but is empty.
 
 | Pain | Impact |
 |------|--------|
-| Data across 6 sheets | No cross-section reporting |
+| Data across N sheets | No cross-section reporting |
 | `Registro` empty | No history |
 | Summary `%` via fragile `CONTAR.SI`/`MAX` | Breaks on paste/calendar/moves |
 | No audit trail | Corrections invisible |
 | `Apoyo` manual | Support hours not in history |
 | Calendar depends on `Hoja2` | Deleting `Hoja2` blanks weekdays |
 
-**Solution:** On every valid edit (`A`/`AT`/`BM`/`F`) in `E15:AI44`: resolve operator + date + section (§5.2 Spanish formulas), upsert one row in `Registro` keyed by `(section, operator_name, date)` with `LockService`, handle clears/bulk/month/`Apoyo`. `Registro` = DB; sheets = UX.
+**Solution:** On every valid edit (`A`/`AT`/`BM`/`F`) in `E15:AI44` on any attendance sheet detected via structure (not hardcoded list): resolve operator + date + section (alias or sheet name), upsert one row in `Registro` keyed by `(section, operator_name, date)` with `LockService`, handle clears/bulk/month/`Apoyo`. `Registro` = DB; sheets = UX.
 
 ## 3. Goals / Non-Goals
 
 **Goals v1:** Every valid mark in `Registro` within seconds; corrections update in place; clears → `void`; bulk paste + month change handled; `Apoyo` flagged; one-time backfill.
 
-**Non-Goals v1:** Replacing 6-sheet UX; dashboards; notifications; payroll; rewriting `AJ:AM`; DOM/canvas scraping.
+**Non-Goals v1:** Replacing N-sheet attendance UX (initially 6); dashboards; notifications; payroll; rewriting `AJ:AM`; DOM/canvas scraping.
 
 ## 4. Stakeholders & Actors
 
@@ -48,28 +48,28 @@ Attendance for ~180 operators (6 × 30) lives in 6 identical section sheets. Que
 | RRHH / Admin | HR — consumes `Registro` | Filterable history, audit |
 | Owner / Maintainer | Apps Script owner | Simple deploy, no ext deps |
 
-**Per-section responsible:** Each of 6 logical sections has a different responsible. Mapping `Config!A:B` (`logical section → email`), fallback `RESPONSABLE` header. `responsible = Config(section) ?? headerCell`. Window `today / today-1` (`America/La_Paz`, FR-013). Older dates → RRHH via `Asistencia → Solicitar corrección / Registro manual` (`via_manual` audited). Physical tab names are currently placeholders (see §5.1); resolution is Config-driven via sheet ID or current tab name → logical section.
+**Per-section responsible:** Each attendance sheet has its own responsible. `Config!A:B` is an **optional alias** (`sheetId` or current sheet name → display name); if present it provides the `section` value stored in `Registro` and the `responsible(section)` email. If absent, `section` = sheet's current name and responsible falls back to the `RESPONSABLE` header cell on that sheet. `responsible = ConfigAlias(section) ?? headerCell`. Window `today / today-1` (`America/La_Paz`, FR-013). Older dates → RRHH via `Asistencia → Solicitar corrección / Registro manual` (`via_manual` audited). Adding a new sheet (clone template) or renaming a sheet requires no code change — detection is structural (see §5.1) and alias is optional.
 
-**Permission:** Responsables edit only own logical section within window; out-of-window/cross-section → toast, no write, log `Errors`. RRHH reads `Registro` + override via menu. Writes as owner via **installable trigger** (anon cannot write — §5.3, NFR-04).
+**Permission:** Responsables edit only own attendance sheet within window; out-of-window/cross-section → toast, no write, log `Errors`. RRHH reads `Registro` + override via menu. Writes as owner via **installable trigger** (anon cannot write — §5.3, NFR-04).
 
 ## 5. Current State Analysis
 
-### 5.1 Sheet Inventory (10 sheets)
+### 5.1 Sheet Inventory (10 sheets initially — N attendance sheets, variable)
 
 | Sheet | Purpose | State |
 |-------|---------|-------|
-| `- AYUDA -` | Instructions | Static help (gid `1765343219`) |
-| `Preparacion` | Section — input | Template A1:AM44, 30 ops (gid `740536758`) |
-| `Continua` | Section — input | Same template |
-| `Acoplado` | Section — input | Same template |
-| `Retorcedoras` | Section — input | Same template |
-| `Madejeras` | Section — input | Same template |
-| `Producto Terminado` | Section — input | Same template |
+| `- AYUDA -` | Instructions (ignorable) | Static help (gid `1765343219`) |
+| `Preparacion` | Attendance — input (initial) | Template A1:AM44, 30 ops (gid `740536758`) |
+| `Continua` | Attendance — input (initial) | Same template |
+| `Acoplado` | Attendance — input (initial) | Same template |
+| `Retorcedoras` | Attendance — input (initial) | Same template |
+| `Madejeras` | Attendance — input (initial) | Same template |
+| `Producto Terminado` | Attendance — input (initial) | Same template |
 | `Registro` | Central DB (target) | **Empty** — schema §9 |
-| `Apoyo` | Cross-section support — growing log table (eventual, not daily) | `A2:E2` header Fecha \| Operador \| Sección Destino \| Motivo \| (Horas/empty); `A3:E1000` data, eventual not daily, no window/code, per-row incremental (whole-table scan only on Backfill) |
+| `Apoyo` | Cross-section support — growing log table (eventual, not daily) — **fixed** | `A2:E2` header Fecha \| Operador \| Sección Destino \| Motivo \| (Horas/empty); `A3:E1000` data, eventual not daily, no window/code, per-row incremental (whole-table scan only on Backfill) |
 | `Hoja2` | Hidden lookup | Months A1:B12 + weekday D1:E7 — **critical** |
 
-> Sheet names are currently non-canonical (random placeholders) and will be normalized. Do not hardcode the 6 names; Apps Script must resolve logical section via `Config!A:B` mapping (sheet ID or current tab name → logical section) or a normalized name table. The 6 logical sections are Preparacion, Continua, Acoplado, Retorcedoras, Madejeras, Producto Terminado.
+> **Scalable attendance sheets (v0.3.5):** The workbook starts with 6 attendance sheets but the count and names are variable — sheets can be added (clone template) or renamed without code changes. An **attendance sheet** is any sheet that structurally matches the template: contains the input zone `E15:AI44`, the calendar controls `S7:U7`/`S9:U9` with `V9`/`W7`/`E11:AI13` via `Hoja2`, and header `C13` `Nombres y Apellidos`. Detection is via structure, not a hardcoded name list. Sheets in the ignorable list — `Registro`, `Config`, `Errors`, `Hoja2`, `- AYUDA -`, `Apoyo` — are never treated as attendance sheets. `Apoyo` stays fixed (single sheet, not scalable). `Config!A:B` is an **optional alias** (`sheetId` or current sheet name → display name); if present, its value is used as `section` in `Registro`, otherwise `section` = sheet's current name. Never hardcode the 6 names.
 
 ### 5.2 Template Mechanics — Verified Formulas (Spanish locale `es-BO`)
 
@@ -109,9 +109,9 @@ Full dump in `docs/playwright-evidence/Preparacion-analysis.md`.
 ## 6. Proposed Solution Overview
 
 ```
-6 Sheets (E15:AI44 + S7:U7/S9:U9/V9) ──onEdit──▶ Apps Script (validate A/AT/BM/F, resolve op+date, upsert/delete, bulk, es-BO) ──API v4──▶ Registro (PK section,operator,date)
+N Attendance Sheets (E15:AI44 + S7:U7/S9:U9/V9, detected via structure) ──onEdit──▶ Apps Script (validate A/AT/BM/F, resolve op+date, section=alias??sheetName, upsert/delete, bulk, es-BO) ──API v4──▶ Registro (PK section,operator,date)
                                                                    ▲
-                         Apoyo (A2:E2 header, A3:E1000 growing table, per-row) ───────┘  is_apoyo=TRUE, code=""
+                         Apoyo (fixed, A2:E2 header, A3:E1000 growing table, per-row) ───────┘  is_apoyo=TRUE, code=""
 ```
 
 | Principle | Rationale |
@@ -129,19 +129,19 @@ Full dump in `docs/playwright-evidence/Preparacion-analysis.md`.
 
 | ID | Requirement | Priority |
 |----|-------------|----------|
-| **FR-001** | On edit in `E15:AI44` (6 logical sections, physical tabs resolved via Config), capture `(section, operator_name, date, code, edited_by, timestamp, source_range, is_apoyo, nota, status)` and upsert into `Registro` after FR-013 gate. Date via `E11:AI11` (`=+E13&"/"&$V$9&"/"&$S$7`); gate: `activeUser==responsible(section)` (`Config!A:B` or header) AND `fecha_col∈{today,today-1}` Lima. Fail → toast + optional revert, no write. | Must |
+| **FR-001** | On edit in `E15:AI44` on **any attendance sheet detected via structure** (not hardcoded 6; ignorable list `Registro/Config/Errors/Hoja2/- AYUDA -/Apoyo` excluded; template check `E15:AI44 + S7:U7/S9:U9 + Hoja2` / `C13` header), capture `(section, operator_name, date, code, edited_by, timestamp, source_range, is_apoyo, nota, status)` and upsert into `Registro` after FR-013 gate. `section` = `Config!A:B` alias (`sheetId` or current sheet name → display name) if present, else sheet's current name. Date via `E11:AI11` (`=+E13&"/"&$V$9&"/"&$S$7`); gate: `activeUser==responsible(section)` (`Config!A:B` alias or header) AND `fecha_col∈{today,today-1}` Lima. Fail → toast + optional revert, no write. | Must |
 | **FR-002** | `Registro` schema fixed (§9); header frozen, never reordered. Col `L` (`nota`) is optional per-cell nota for any code (FR-014) — empty default, overwrite, no history; set via menu + optional `setNote()`. | Must |
 | **FR-003** | Clearing a cell sets `status=void` (soft-delete). | Must |
 | **FR-004** | Correction (`F→A`) updates row in place, `updated_at` refreshed. | Must |
 | **FR-005** | Bulk paste: each cell in `paste∩E15:AI44` with valid `E11` processed individually; toast `N ins / M upd / K void`. | Must |
-| **FR-006** | Calendar change with confirm and reload — On edit of `S7:U7` (year) or `S9:U9` (month) (`isCalendarRange`), show confirmation dialog `¿Cambiaste a [Month Year], recargar desde Registro? Esto limpiará E15:AI44 y cargará los registros de ese mes desde Registro.` — `E11:AI11`/`E12:AI12` still recalc via Sheet formulas (`V9`/`W7`). If user confirms **Yes**: clear `E15:AI44` content and notes (`clearContent` + `clearNote`), then read `Registro` filtered by `section = current sheet logical section` and `date` between first and last day of selected month/year, and repopulate `E15:AI44` with `code` and `setNote` with `nota` where exists. If user cancels **No**: do nothing (leave grid as is, no `Registro` writes, no clear). Changing month/year **never** creates `Registro` rows directly; only repopulation reads. Revert (e.g. Sept → Aug) follows same flow and reloads the target month's view from `Registro`. | Must |
+| **FR-006** | Calendar change with confirm and reload — On edit of `S7:U7` (year) or `S9:U9` (month) (`isCalendarRange`) on **any attendance sheet (scalable detection, §5.1)**, show confirmation dialog `¿Cambiaste a [Month Year], recargar desde Registro? Esto limpiará E15:AI44 y cargará los registros de ese mes desde Registro.` — `E11:AI11`/`E12:AI12` still recalc via Sheet formulas (`V9`/`W7`). If user confirms **Yes**: clear `E15:AI44` content and notes (`clearContent` + `clearNote`), then read `Registro` filtered by `section = alias ?? sheetName` (current sheet's resolved section) and `date` between first and last day of selected month/year, and repopulate `E15:AI44` with `code` and `setNote` with `nota` where exists. If user cancels **No**: do nothing (leave grid as is, no `Registro` writes, no clear). Changing month/year **never** creates `Registro` rows directly; only repopulation reads. Revert (e.g. Sept → Aug) follows same flow and reloads the target month's view from `Registro`. | Must |
 | **FR-007** | `Apoyo` is growing log table `A2:E2` header Fecha \| Operador \| Sección Destino \| Motivo \| (Horas/empty), data `A3:E1000` — eventual, not daily mandatory, distinct from attendance sheets (no window, no code validation, no Agregar nota flow). No `today/today-1` window (`America/La_Paz`) and no `A/AT/BM/F` validation; Motivo optional; Horas col unused; any Fecha valid as stored. Automatic registration is **per-row incremental**: only the edited row(s) `A3:E1000` that become **complete** (`Fecha` valid ISO + `Operador` non-empty + `Sección Destino` non-empty) are upserted to `Registro` with `is_apoyo=TRUE`, `code=""`, `code_label=""`, `nota=Motivo` (trimmed, may be empty), `date=Fecha` as stored; intermediate/partial edits are silent (no error toast, no write). `D=Sección Destino`, `L=Motivo`. No whole-table scan on normal `onEdit`; whole-table scan only for Backfill (idempotent). | Must |
 | **FR-008** | Only `A,AT,BM,F` (and empty) accepted; other → toast, no write. | Must |
-| **FR-009** | One-time backfill: scan 6 logical sections `E15:AI44` where `E11` valid + non-empty → upsert. Idempotent. Handle merged `S7:U7`. | Must |
+| **FR-009** | One-time backfill: scan **all attendance sheets detected via structure** (§5.1, not hardcoded 6) `E15:AI44` where `E11` valid + non-empty → upsert (`section` = alias ?? sheetName). Idempotent. Handle merged `S7:U7`. `Apoyo` excluded from this scan (handled separately in FR-007). | Must |
 | **FR-010** | Every row stores `edited_by` (email or `unknown`) and `edited_at` in `America/La_Paz`. | Should |
 | **FR-011** | Menu `Asistencia → Ver Registro / Re-sincronizar / Agregar/editar nota a celda activa / Solicitar corrección / Registro manual / Backfill` (correction/bypass via menu audited; nota via modal §11.6, window-gated). | Should |
 | **FR-012** | Mapping `A→Asistencia, F→Falta, AT→Tardanza, BM→Baja Médica` in config, not hardcoded. | Should |
-| **FR-013** | Window + permission: `fecha_col==today OR today-1` Lima (`Utilities.formatDate(new Date(),"America/La_Paz","yyyy-MM-dd")` from `E11` ISO). Gate: `activeUser==responsible(section)` (`Config!A:B ?? header`) AND `fecha_col∈{today,today-1}`. Applies to code writes **and** `nota` updates (FR-014). Blocked → toast `⛔ Solo podés registrar hoy y ayer…`, optional revert, no write, log `Errors`. RRHH override via menu (`via_manual`). Per-cell for bulk. | Must |
+| **FR-013** | Window + permission: `fecha_col==today OR today-1` Lima (`Utilities.formatDate(new Date(),"America/La_Paz","yyyy-MM-dd")` from `E11` ISO). Gate: `activeUser==responsible(section)` (`Config!A:B` alias ?? header) AND `fecha_col∈{today,today-1}`. `section` = alias if `Config!A:B` maps this sheet, else sheet name. Applies to code writes **and** `nota` updates (FR-014) on any attendance sheet (scalable detection). Blocked → toast `⛔ Solo podés registrar hoy y ayer…`, optional revert, no write, log `Errors`. RRHH override via menu (`via_manual`). Per-cell for bulk. | Must |
 | **FR-014** | Optional per-cell `nota` for **any** code (`A/AT/BM/F`) stored per `record_id` in `Registro!L`; empty (`""`) if omitted. No history/bitácora — `nota` overwrites current value (no version table). Entry via `Asistencia → Agregar/editar nota a celda activa` HtmlService modal (pre-filled with current `Registro!L` if exists) that updates same `record_id`'s `L` and cell `Note` via `setNote()` / `clearNote()`. Rapid/dropdown entry in `E15:AI44` (incl. data validation, bulk paste) saves code immediately with `nota=""` and no per-cell modal — menu is persistent post-bulk. Every atomic action has its own toast: code `✅ Registrado`, nota save `✅ Nota guardada`, nota update `✅ Nota actualizada`, nota delete `🗑️ Nota borrada`. Visualize without opening: hover shows cell `Note` (`"F — motivo"`) and `Registro!L` is filterable list. Menu gated by FR-013 window + permission; out-of-window/blocked → toast, no write, log `Errors`, audited via `edited_by`. If active cell has no existing `Registro` row (code not yet registered) → toast `⚠️ No hay registro para esta fecha — primero marcá el código.` — nota alone creates no row. | Must |
 
 ### 7.2 User Stories
@@ -153,7 +153,7 @@ Full dump in `docs/playwright-evidence/Preparacion-analysis.md`.
 | US-03 | Responsable | clear a mark | voided | FR-003 |
 | US-04 | Responsable | paste row of marks | 31 days w/o per-cell | FR-005 |
 | US-05 | Responsable | change `S9:U9` month | calendar w/o pollution | FR-006 |
-| US-06 | RRHH | filter `Registro` by op/section/month/code | reports w/o 6 sheets | FR-001 |
+| US-06 | RRHH | filter `Registro` by op/section/month/code | reports w/o opening N sheets | FR-001 |
 | US-07 | RRHH | see who/when | audit | FR-010 |
 | US-08 | Responsable | log `Apoyo` | traceable | FR-007 |
 | US-09 | Responsable | correct yesterday (`today-1` Lima) | fix w/o RRHH | FR-013 |
@@ -166,7 +166,7 @@ Full dump in `docs/playwright-evidence/Preparacion-analysis.md`.
 | NFR-01 | Performance | Single <2s; 30-cell paste <10s | Batch `getValues`/`setValues` |
 | NFR-02 | Quotas | 90 min/day, 20k fetches, 50 MB — no ext calls | Backfill heaviest |
 | NFR-03 | Reliability | `LockService.getDocumentLock()` per write (5s, retry 1). Window before lock | Queue failed via menu |
-| NFR-04 | Permissions | Installable trigger as owner; simple `onEdit` for toast; `Config!A:B` for logical sections | Anon `401` cannot write |
+| NFR-04 | Permissions | Installable trigger as owner; simple `onEdit` for toast; attendance sheets detected via structure; `Config!A:B` optional alias (sheetId/name → display) | Anon `401` cannot write |
 | NFR-05 | Timezone | `America/La_Paz` (UTC-4) everywhere — window via `Utilities.formatDate(...,"America/La_Paz","yyyy-MM-dd")` | Never UTC/browser |
 | NFR-06 | Maintainability | No npm/pip. `apps-script/` via `clasp`; Spanish formulas verbatim | `tools/` only |
 | NFR-07 | Observability | `Logger` + toast; optional `Errors` sheet | Log `Hoja2`/merged failures |
@@ -181,7 +181,7 @@ Full dump in `docs/playwright-evidence/Preparacion-analysis.md`.
 | A | `record_id` | STRING | `PREP-001-2026-03-15` | PK `section-operator_name-date` |
 | B | `created_at` | DATETIME | `2026-08-30 14:22:05` | First insert (Lima) |
 | C | `updated_at` | DATETIME | `2026-08-30 15:00:12` | Last update |
-| D | `section` | ENUM | `Preparacion` | 1 of 6 logical sections; `Apoyo`→`D=Apoyo!C3:C1000` (Sección Destino) |
+| D | `section` | STRING | `Preparacion` | Attendance sheet resolved as `Config!A:B` alias (`sheetId`/name → display name) if present, else sheet's current name (scalable, not hardcoded enum); `Apoyo`→`D=Apoyo!C3:C1000` (Sección Destino) |
 | E | `operator_name` | STRING | `Juan Pérez` | Col B or `Apoyo!B3:B1000` (Operador) |
 | F | `date` | DATE | `2026-03-15` | ISO from `E11:AI11` (attendance, window-gated) or `Apoyo!A3:A1000` Fecha as stored (any date, no window) |
 | G | `code` | ENUM | `F` | `A/AT/BM/F`; for `is_apoyo=TRUE` → `""` (no code) |
@@ -194,7 +194,7 @@ Full dump in `docs/playwright-evidence/Preparacion-analysis.md`.
 
 > `weekday`/`month`/`year` not stored — derive from `F`.
 
-> Storage model: section sheets are whole-month views, Apps Script saves only changed marks via incremental upsert per cell. `F` is temporal key; month view via `FILTER`/`QUERY` by `F`. `Apoyo` is growing table `A2:E2` header Fecha \| Operador \| Sección Destino \| Motivo \| (Horas/empty), `A3:E1000` eventual — per-row incremental upsert (any date, no window/code, `code=""`, `L=Motivo`); whole-table scan only for Backfill (idempotent).
+> Storage model: attendance sheets are whole-month views, Apps Script saves only changed marks via incremental upsert per cell. `F` is temporal key; month view via `FILTER`/`QUERY` by `F`. `Apoyo` (fixed) is growing table `A2:E2` header Fecha \| Operador \| Sección Destino \| Motivo \| (Horas/empty), `A3:E1000` eventual — per-row incremental upsert (any date, no window/code, `code=""`, `L=Motivo`); whole-table scan only for Backfill (idempotent). `section` is alias or sheet name, not a hardcoded enum — adding/renaming sheets needs no code change.
 
 > `L` (`nota`): for attendance rows, optional per-cell nota for any code, `""` default, no history — overwrites. Code edits via `onEdit` leave `L` untouched unless set via menu modal; `nota` edits update `L` + `setNote()` on same `record_id` (FR-014). For `is_apoyo=TRUE` rows, `L=Motivo` (`Apoyo!D`) at insert; Horas col unused; `nota` modal/window rules do not apply to Apoyo.
 
@@ -208,7 +208,7 @@ Full dump in `docs/playwright-evidence/Preparacion-analysis.md`.
 
 ### 9.3 Storage Estimate
 
-6×30×31×12 ≈ **66,960 rows/year** worst; ~30k realistic — within 10M cells.
+N×30×31×12 ≈ **66,960 rows/year** for N=6 worst (scales linearly with N); ~30k realistic for N=6 — within 10M cells.
 
 ## 10. Edge Cases & Business Rules
 
@@ -220,24 +220,25 @@ Full dump in `docs/playwright-evidence/Preparacion-analysis.md`.
 | EC-04 | Duplicate `operator_name` | Warning + row tiebreaker; don't block others |
 | EC-05 | Timezone & locale | `America/La_Paz`; Spanish `SI.ERROR`/`BUSCARV`/`DIASEM`/`CONTAR.SI` verbatim |
 | EC-06 | Concurrent edits | `LockService` (5s, retry 1s → toast + queue) |
-| EC-07 | Per-section permission | `activeUser==responsible(section)` + window; installable as owner; logical sections via Config |
+| EC-07 | Per-section permission (scalable) | `activeUser==responsible(section)` + window; installable as owner; attendance sheets detected via structure; `section` = `Config!A:B` alias (`sheetId`/name → display) ?? sheet name; `Apoyo` fixed, not scalable |
 | EC-08 | Row insert/delete | Resolve operator via col A/B of edited row dynamically |
-| EC-09 | Sheet rename / placeholder / `Hoja2` | Logical sections via `Config!A:B` (sheet ID → logical section); placeholder tab name → warning if unmapped. Validate `Hoja2!A1:B12`/`D1:E7` on install+`onEdit` |
+| EC-09 | Sheet rename / placeholder / `Hoja2` (scalable) | Attendance sheets detected via structure, not name; `Config!A:B` is optional alias (`sheetId` or current name → display), not required — unmapped sheet uses its current name as `section`. Validate `Hoja2!A1:B12`/`D1:E7` on install+`onEdit`. `Hoja2` never treated as attendance sheet |
 | EC-10 | Manual `Registro` edits | Discouraged; next upsert overwrites `code`/`updated_at`, preserves `created_at` |
 | EC-11 | Grace window `today/today-1` | ISO `fecha_col` vs Lima `today/today-1` (`Utilities.formatDate`); per-cell; RRHH bypass audited |
 | EC-12 | Nota optional per-cell (any code) — toast per action + view/edit | `Registro!L` (`nota`) optional for any code (`A/AT/BM/F`), `""` default, no history — overwrites current value. Rapid dropdown/bulk (`E15:AI44` with data validation) saves code with `nota=""` and no per-cell modal; menu is persistent post-bulk. Toast per atomic action: code `✅ Registrado`, nota save `✅ Nota guardada`, nota update `✅ Nota actualizada`, nota delete `🗑️ Nota borrada`. **Visualize:** hover shows cell `Note` via `setNote()` (`"F — motivo"`); `Registro!L` is filterable list. **Edit:** `Asistencia → Agregar/editar nota a celda activa` opens modal pre-filled with current `Registro!L` if exists; user can edit, clear (empty → `clearNote()` + `L=""`), or cancel. If no `record_id` yet → `⚠️ No hay registro para esta fecha — primero marcá el código.` (nota alone creates no row). Window-gated (FR-013) + permission; out-of-window/blocked → toast `⛔ Solo podés registrar hoy y ayer…`, no write, log `Errors`. Subsequent code correction preserves `nota` unless overwritten via menu. `setNote()` mirror is view aid, never source of truth. |
 | EC-13 | Apoyo — partial row silent, table growth, no window/code, per-row only | Growing table `A2:E2` header Fecha \| Operador \| Sección Destino \| Motivo \| (Horas/empty), data `A3:E1000` eventual (not daily). Per-row incremental: only edited row(s) `A3:E1000` are evaluated. Intermediate/partial edits (missing `Fecha`/`Operador`/`Sección Destino` or invalid `Fecha`) are **silent** — no error toast, no `Registro` write — to allow user to fill row over time. Row becomes **complete** when `Fecha` is valid ISO + `Operador` non-empty (trimmed) + `Sección Destino` non-empty → upsert `is_apoyo=TRUE`, `code=""`, `code_label=""`, `nota=Motivo` (trimmed, may be empty), `date=Fecha` as stored; Horas col unused. Any date valid (no `today/today-1` window), no `A/AT/BM/F` validation, no `Agregar nota` modal. Subsequent edit to same row that keeps it complete → update in place (`updated_at`/`nota`/`section` if changed); clearing required field or invalidating Fecha → no new write (existing row unchanged; explicit clear via menu/backfill only). Bulk paste on `Apoyo` → per-row same completeness check. Whole-table scan **only** on Backfill (idempotent, `LockService`); never on normal `onEdit`. Table may grow beyond 1000 — extend range as needed; never `clear` whole table. |
-| EC-14 | Month/year change revert and reload (FR-006) | `S7:U7`/`S9:U9` edit triggers `isCalendarRange` confirm dialog, not a silent no-op. **Yes** → `clearContent` + `clearNote` on `E15:AI44`, then query `Registro` where `section = logical section` and `date ∈ [firstDay, lastDay]` of selected month/year → write `code` to matching `(operator, date)` cell and `setNote("CODE — nota")` where `nota` non-empty; blank `E11` columns skipped. **No** → leave grid as is, no clear, no `Registro` reads/writes. Navigation is reversible: Sept → Aug reloads Aug view; Aug → Sept reloads Sept view. Never creates `Registro` rows on calendar change alone; `E11`/`E12`/`W7` still recalc via formulas regardless of dialog choice. |
+| EC-14 | Month/year change revert and reload (FR-006) | `S7:U7`/`S9:U9` edit triggers `isCalendarRange` confirm dialog on any attendance sheet (scalable), not a silent no-op. **Yes** → `clearContent` + `clearNote` on `E15:AI44`, then query `Registro` where `section = alias ?? sheetName` (resolved for that sheet) and `date ∈ [firstDay, lastDay]` of selected month/year → write `code` to matching `(operator, date)` cell and `setNote("CODE — nota")` where `nota` non-empty; blank `E11` columns skipped. **No** → leave grid as is, no clear, no `Registro` reads/writes. Navigation is reversible: Sept → Aug reloads Aug view; Aug → Sept reloads Sept view. Never creates `Registro` rows on calendar change alone; `E11`/`E12`/`W7` still recalc via formulas regardless of dialog choice. |
+| EC-15 | Adding new attendance sheet / renaming (scalable) | **Add:** clone any attendance sheet (template with `E15:AI44`, `S7:U7`/`S9:U9`, `Hoja2` / `C13`); on first edit the sheet is detected via structure (ignorable list `Registro/Config/Errors/Hoja2/- AYUDA -/Apoyo` excluded) — no code change required. Optional: add row to `Config!A:B` (`sheetId` or current name → display name) to set friendly `section` value and responsible mapping; if not added, `section` = current sheet name and responsible = `RESPONSABLE` header. Backfill includes the new sheet on next `Backfill histórico`. **Rename:** renaming a tab updates `section` for future writes to the new name (or alias if `Config` maps `sheetId`). Existing `Registro` rows keep old `section` value (PK includes `section`); history is not migrated — filter by old and new values. Prefer `sheetId` in `Config!A:B` to keep alias stable across renames. `Apoyo` is excluded — stays fixed, single sheet. |
 
 ## 11. UX / Flow
 
 ### 11.1 Happy Path — Single Cell
 
 ```
-Responsable types "F" in Preparacion!G22
- → onEdit: logical section∈Config, range∩E15:AI44, E11(=+G13&"/"&$V$9&"/"&$S$7) valid, code∈{A,AT,BM,F}
+Responsable types "F" in Preparacion!G22 (any attendance sheet, scalable detection)
+ → onEdit: sheet is attendance (structure match, not in ignorable list), range∩E15:AI44, E11(=+G13&"/"&$V$9&"/"&$S$7) valid, code∈{A,AT,BM,F}
  → invalid → toast "⚠️ Código no válido. Use A, AT, BM o F."
- → valid → check owner+window (Config/header, fecha_col vs today/today-1 Lima)
+  → valid → check owner+window (Config alias ?? header, fecha_col vs today/today-1 Lima)
    → blocked → toast ⛔ + revert, no write
    → allowed → Lock → findRow→insert/update → toast "✅ Registrado: Juan Pérez — 2026-03-15 = F"
 ```
@@ -355,7 +356,7 @@ User edits S7:U7 (year) or S9:U9 (month) on a section sheet
    [Sí] [No]
  → No  → do nothing (leave E15:AI44 as is, no Registro reads/writes)
  → Sí  → clearContent + clearNote on E15:AI44
-        → read Registro filtered by section = current sheet logical section
+         → read Registro filtered by section = alias ?? sheetName (resolved for current sheet)
           and date ∈ [firstDayOfMonth, lastDayOfMonth] for selected month/year
         → for each matching row: write code to cell at (operator row, date column) and setNote("CODE — nota") where nota non-empty
         → toast "✅ Recargado: {month year} — N registros" (or "— sin registros" if none)
@@ -383,7 +384,7 @@ User edits S7:U7 (year) or S9:U9 (month) on a section sheet
 | Dashboard / charts | Needs `Registro` first; v2 |
 | Recompute `AJ:AM` via script | Keep formulas v1 |
 | Email/WhatsApp on `F` | Needs infra |
-| Web form / mobile | 6-sheet UX stays |
+| Web form / mobile | N-sheet attendance UX stays |
 | Payroll / HR integration | External dep |
 | `Registro` partitioning | 30k/year fine |
 | Undo UI | Version history suffices |
@@ -401,7 +402,7 @@ User edits S7:U7 (year) or S9:U9 (month) on a section sheet
 | Q2 | Mutable vs append-only? | Mutable — 1 row per PK (`section, operator_name, date`); append-only deferred to v2. |
 | Q3 | Canonical identity — DNI vs name? | Canonical identity is `operator_name`; PK is `(section, operator_name, date)`. |
 | Q4 | Keep `AJ:AM` formulas? | Keep formulas v1; `Registro`-backed summary in v2. |
-| Q5 | Per-section permission? | Per-section — `Config!A:B` mapping (logical section → email) + header fallback. |
+| Q5 | Per-section permission? | Per-section — `Config!A:B` optional alias (`sheetId`/name → display) + header fallback; if no alias, section = sheet name. |
 | Q6 | Weekends S/D? | Recordable — weekends are recordable, `W7` is display-only. |
 | Q7 | Retention? | Infinite — single `Registro` in v1; partitioning only if scale requires. |
 | Q8 | `Apoyo` one vs two rows? | One row with `is_apoyo=TRUE` — avoid duplication. |
@@ -447,9 +448,10 @@ User edits S7:U7 (year) or S9:U9 (month) on a section sheet
 
 | Term | Meaning |
 |------|---------|
-| Section | 1 of 6 logical: Preparacion, Continua, Acoplado, Retorcedoras, Madejeras, Producto Terminado |
+| Section | Attendance sheet resolved as `Config!A:B` alias (`sheetId`/current name → display) if present, else sheet's current name (initially: Preparacion, Continua, Acoplado, Retorcedoras, Madejeras, Producto Terminado; scalable to N) |
+| Attendance sheet | Any non-ignorable sheet matching template structure (`E15:AI44`, `S7:U7`/`S9:U9`, `Hoja2`, `C13`); detected via structure, not hardcoded name |
 | Registro | Central sheet — source of truth |
-| Apoyo | Temp support (`is_apoyo=TRUE`) |
+| Apoyo | Temp support (`is_apoyo=TRUE`) — fixed single sheet, not scalable |
 | Hoja2 | `A1:B12` months, `D1:E7` weekdays `L/M/X/J/V/S/D` |
 | Idempotent upsert | Insert if absent, update if present |
 
@@ -457,4 +459,4 @@ User edits S7:U7 (year) or S9:U9 (month) on a section sheet
 
 Playwright evidence: see `docs/playwright-evidence/Preparacion-analysis.md` and live captures `live-*.png`. No repro tutorial in PRD.
 
-*End of PRD v0.3.4 — Month/year change with confirm+reload (FR-006/EC-14/§11.8): isCalendarRange now shows "¿Cambiaste a [Month Year], recargar desde Registro?..." — Yes clears E15:AI44 and reloads from Registro for section+month/year, No leaves grid as is; never creates Registro rows directly. Apoyo as growing eventual table (FR-007/EC-13/§5.1/§9/§11.7) unchanged, awaiting validation before SDD.*
+*End of PRD v0.3.5 — Scalable attendance sheets: N attendance sheets detected via structure (E15:AI44 + S7:U7/S9:U9 + Hoja2 / C13), ignorable list Registro/Config/Errors/Hoja2/- AYUDA -/Apoyo excluded; section = Config!A:B alias (sheetId/name → display) ?? sheetName; Apoyo stays fixed; adding/renaming sheets needs no code change (EC-15). FR-001/FR-006/FR-009/FR-013 updated for scalable detection; §4/§5.1/§9/§10/EC-07/EC-09 reflect optional alias. Previous v0.3.4 month/year confirm+reload (FR-006/EC-14/§11.8) preserved.*
