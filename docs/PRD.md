@@ -2,10 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.3.2 |
+| **Version** | 0.3.3 |
 | **Author** | [Placeholder — assign owner] |
 | **Date** | 2026-08-31 |
-| **Status** | Draft - clarified toast and view/edit for nota |
+| **Status** | Draft - Apoyo as growing table |
 | **Source** | Google Sheet `1GrZ_9w3CPvsJ22nVCndFojkhrhGmFGY8XcLQrtW7jTs` (native, converted 2026-08-31 from `1iw9bduLeGXQMbjmMV1qrMqE2WoPWCBz3` xlsx; gid `740536758` = Preparacion) |
 | **Repo** | `/home/luis-cm/Documents/Github/Control-de-Asistencia` |
 | **Evidence** | `docs/playwright-evidence/Preparacion-analysis.md` (playwright-cli 0.1.18) |
@@ -66,7 +66,7 @@ Attendance for ~180 operators (6 × 30) lives in 6 identical section sheets. Que
 | `Madejeras` | Section — input | Same template |
 | `Producto Terminado` | Section — input | Same template |
 | `Registro` | Central DB (target) | **Empty** — schema §9 |
-| `Apoyo` | Cross-section support | Manual assignments |
+| `Apoyo` | Cross-section support — growing log table (eventual, not daily) | `A2:E2` header Fecha \| Operador \| Sección Destino \| Motivo \| (Horas/empty); `A3:E1000` data, eventual not daily, no window/code, per-row incremental (whole-table scan only on Backfill) |
 | `Hoja2` | Hidden lookup | Months A1:B12 + weekday D1:E7 — **critical** |
 
 > Sheet names are currently non-canonical (random placeholders) and will be normalized. Do not hardcode the 6 names; Apps Script must resolve logical section via `Config!A:B` mapping (sheet ID or current tab name → logical section) or a normalized name table. The 6 logical sections are Preparacion, Continua, Acoplado, Retorcedoras, Madejeras, Producto Terminado.
@@ -107,9 +107,9 @@ Full dump in `docs/playwright-evidence/Preparacion-analysis.md`.
 ## 6. Proposed Solution Overview
 
 ```
-6 Sheets (E15:AI44 + S7:U7/S9:U9/V9) ──onEdit──▶ Apps Script (validate A/AT/BM/F, resolve op+date, upsert/delete, bulk, Apoyo, es-BO) ──API v4──▶ Registro (PK section,operator,date)
+6 Sheets (E15:AI44 + S7:U7/S9:U9/V9) ──onEdit──▶ Apps Script (validate A/AT/BM/F, resolve op+date, upsert/delete, bulk, es-BO) ──API v4──▶ Registro (PK section,operator,date)
                                                                    ▲
-                                              Apoyo (A3:E3) ───────┘  is_apoyo=TRUE
+                         Apoyo (A2:E2 header, A3:E1000 growing table, per-row) ───────┘  is_apoyo=TRUE, code=""
 ```
 
 | Principle | Rationale |
@@ -133,7 +133,7 @@ Full dump in `docs/playwright-evidence/Preparacion-analysis.md`.
 | **FR-004** | Correction (`F→A`) updates row in place, `updated_at` refreshed. | Must |
 | **FR-005** | Bulk paste: each cell in `paste∩E15:AI44` with valid `E11` processed individually; toast `N ins / M upd / K void`. | Must |
 | **FR-006** | Changing `S7:U7`/`S9:U9` (regen `E11:AI13`, `V9`/`W7`) creates **no** rows. Only `E15:AI44` triggers writes. | Must |
-| **FR-007** | `Apoyo` (`A3:E3` Fecha/Operador/Sección/Código/Motivo — 5 cols) → `Registro` `is_apoyo=TRUE`, `D=Apoyo!C3`, `L=Apoyo!E3`. | Must |
+| **FR-007** | `Apoyo` is growing log table `A2:E2` header Fecha \| Operador \| Sección Destino \| Motivo \| (Horas/empty), data `A3:E1000` — eventual, not daily mandatory, distinct from attendance sheets (no window, no code validation, no Agregar nota flow). No `today/today-1` window (`America/La_Paz`) and no `A/AT/BM/F` validation; Motivo optional; Horas col unused; any Fecha valid as stored. Automatic registration is **per-row incremental**: only the edited row(s) `A3:E1000` that become **complete** (`Fecha` valid ISO + `Operador` non-empty + `Sección Destino` non-empty) are upserted to `Registro` with `is_apoyo=TRUE`, `code=""`, `code_label=""`, `nota=Motivo` (trimmed, may be empty), `date=Fecha` as stored; intermediate/partial edits are silent (no error toast, no write). `D=Sección Destino`, `L=Motivo`. No whole-table scan on normal `onEdit`; whole-table scan only for Backfill (idempotent). | Must |
 | **FR-008** | Only `A,AT,BM,F` (and empty) accepted; other → toast, no write. | Must |
 | **FR-009** | One-time backfill: scan 6 logical sections `E15:AI44` where `E11` valid + non-empty → upsert. Idempotent. Handle merged `S7:U7`. | Must |
 | **FR-010** | Every row stores `edited_by` (email or `unknown`) and `edited_at` in `America/La_Paz`. | Should |
@@ -179,22 +179,22 @@ Full dump in `docs/playwright-evidence/Preparacion-analysis.md`.
 | A | `record_id` | STRING | `PREP-001-2026-03-15` | PK `section-operator_name-date` |
 | B | `created_at` | DATETIME | `2026-08-30 14:22:05` | First insert (Lima) |
 | C | `updated_at` | DATETIME | `2026-08-30 15:00:12` | Last update |
-| D | `section` | ENUM | `Preparacion` | 1 of 6 logical sections; `Apoyo`→`D=Apoyo!C3` |
-| E | `operator_name` | STRING | `Juan Pérez` | Col B or `Apoyo!B3` |
-| F | `date` | DATE | `2026-03-15` | ISO from `E11:AI11` or `Apoyo!A3` |
-| G | `code` | ENUM | `F` | `A/AT/BM/F` |
-| H | `code_label` | STRING | `Falta` | Via mapping |
-| I | `is_apoyo` | BOOLEAN | `FALSE` | `TRUE` if from `Apoyo` |
+| D | `section` | ENUM | `Preparacion` | 1 of 6 logical sections; `Apoyo`→`D=Apoyo!C3:C1000` (Sección Destino) |
+| E | `operator_name` | STRING | `Juan Pérez` | Col B or `Apoyo!B3:B1000` (Operador) |
+| F | `date` | DATE | `2026-03-15` | ISO from `E11:AI11` (attendance, window-gated) or `Apoyo!A3:A1000` Fecha as stored (any date, no window) |
+| G | `code` | ENUM | `F` | `A/AT/BM/F`; for `is_apoyo=TRUE` → `""` (no code) |
+| H | `code_label` | STRING | `Falta` | Via mapping; for `is_apoyo=TRUE` → `""` |
+| I | `is_apoyo` | BOOLEAN | `FALSE` | `TRUE` if from `Apoyo` growing table `A3:E1000` (no window/code, `code=""`) |
 | J | `edited_by` | STRING | `resp.prep@factory.pe` | Email or `unknown` |
 | K | `source_range` | STRING | `Preparacion!G22` | A1 traceability |
-| L | `nota` | STRING | `apoyo en conera 4` / `""` | Optional per-cell nota for **any** code (`A/AT/BM/F`), empty (`""`) default. No history/bitácora — overwrites current value. Set via menu `Agregar/editar nota a celda activa` → `Registro!L` + optional cell `Note` via `setNote()`. For `Apoyo` rows `L=Apoyo!E3` initially; editable same way. |
+| L | `nota` | STRING | `apoyo en conera 4` / `""` | Optional per-cell nota for **any** attendance code (`A/AT/BM/F`), empty (`""`) default; no history — overwrites. Set via menu `Agregar/editar nota a celda activa` → `Registro!L` + `setNote()`. For `is_apoyo=TRUE` rows `L=Motivo` (`Apoyo!D3:D1000`, trimmed, may be empty); Horas col unused; nota flow does not apply to Apoyo (no code/nota modal). |
 | M | `status` | ENUM | `active` | `active`/`void` |
 
 > `weekday`/`month`/`year` not stored — derive from `F`.
 
-> Storage model: section sheets are whole-month views, Apps Script saves only changed marks via incremental upsert per cell. `F` is temporal key; month view via `FILTER`/`QUERY` by `F`. `Apoyo` 5-col `A3:E3` → `D`/`L` uniform.
+> Storage model: section sheets are whole-month views, Apps Script saves only changed marks via incremental upsert per cell. `F` is temporal key; month view via `FILTER`/`QUERY` by `F`. `Apoyo` is growing table `A2:E2` header Fecha \| Operador \| Sección Destino \| Motivo \| (Horas/empty), `A3:E1000` eventual — per-row incremental upsert (any date, no window/code, `code=""`, `L=Motivo`); whole-table scan only for Backfill (idempotent).
 
-> `L` (`nota`): optional per-cell nota for any code, `""` default, no history/bitácora — overwrites current value. Code edits via `onEdit` leave `L` untouched unless set via menu modal; `nota` edits update `L` + optional cell `Note` via `setNote()` on same `record_id` (FR-014).
+> `L` (`nota`): for attendance rows, optional per-cell nota for any code, `""` default, no history — overwrites. Code edits via `onEdit` leave `L` untouched unless set via menu modal; `nota` edits update `L` + `setNote()` on same `record_id` (FR-014). For `is_apoyo=TRUE` rows, `L=Motivo` (`Apoyo!D`) at insert; Horas col unused; `nota` modal/window rules do not apply to Apoyo.
 
 ### 9.2 PK & Indexes
 
@@ -224,6 +224,7 @@ Full dump in `docs/playwright-evidence/Preparacion-analysis.md`.
 | EC-10 | Manual `Registro` edits | Discouraged; next upsert overwrites `code`/`updated_at`, preserves `created_at` |
 | EC-11 | Grace window `today/today-1` | ISO `fecha_col` vs Lima `today/today-1` (`Utilities.formatDate`); per-cell; RRHH bypass audited |
 | EC-12 | Nota optional per-cell (any code) — toast per action + view/edit | `Registro!L` (`nota`) optional for any code (`A/AT/BM/F`), `""` default, no history — overwrites current value. Rapid dropdown/bulk (`E15:AI44` with data validation) saves code with `nota=""` and no per-cell modal; menu is persistent post-bulk. Toast per atomic action: code `✅ Registrado`, nota save `✅ Nota guardada`, nota update `✅ Nota actualizada`, nota delete `🗑️ Nota borrada`. **Visualize:** hover shows cell `Note` via `setNote()` (`"F — motivo"`); `Registro!L` is filterable list. **Edit:** `Asistencia → Agregar/editar nota a celda activa` opens modal pre-filled with current `Registro!L` if exists; user can edit, clear (empty → `clearNote()` + `L=""`), or cancel. If no `record_id` yet → `⚠️ No hay registro para esta fecha — primero marcá el código.` (nota alone creates no row). Window-gated (FR-013) + permission; out-of-window/blocked → toast `⛔ Solo podés registrar hoy y ayer…`, no write, log `Errors`. Subsequent code correction preserves `nota` unless overwritten via menu. `setNote()` mirror is view aid, never source of truth. |
+| EC-13 | Apoyo — partial row silent, table growth, no window/code, per-row only | Growing table `A2:E2` header Fecha \| Operador \| Sección Destino \| Motivo \| (Horas/empty), data `A3:E1000` eventual (not daily). Per-row incremental: only edited row(s) `A3:E1000` are evaluated. Intermediate/partial edits (missing `Fecha`/`Operador`/`Sección Destino` or invalid `Fecha`) are **silent** — no error toast, no `Registro` write — to allow user to fill row over time. Row becomes **complete** when `Fecha` is valid ISO + `Operador` non-empty (trimmed) + `Sección Destino` non-empty → upsert `is_apoyo=TRUE`, `code=""`, `code_label=""`, `nota=Motivo` (trimmed, may be empty), `date=Fecha` as stored; Horas col unused. Any date valid (no `today/today-1` window), no `A/AT/BM/F` validation, no `Agregar nota` modal. Subsequent edit to same row that keeps it complete → update in place (`updated_at`/`nota`/`section` if changed); clearing required field or invalidating Fecha → no new write (existing row unchanged; explicit clear via menu/backfill only). Bulk paste on `Apoyo` → per-row same completeness check. Whole-table scan **only** on Backfill (idempotent, `LockService`); never on normal `onEdit`. Table may grow beyond 1000 — extend range as needed; never `clear` whole table. |
 
 ## 11. UX / Flow
 
@@ -311,6 +312,32 @@ Responsable selects cell with code (e.g., Preparacion!G22) → Asistencia → Ag
 | Nota delete (clear textarea / Borrar) | Toast `🗑️ Nota borrada: {operator} — {date}` (`L=""` + `clearNote()`) |
 | Bulk — notas unaffected | Code bulk toast only; existing `L` preserved unless edited via menu |
 
+### 11.7 Apoyo — Growing Table (Per-Row, Eventual)
+
+**Distinct from attendance:** Apoyo has no `today/today-1` window, no `A/AT/BM/F` code validation, and no `Agregar nota` flow. It is a form-like growing log `A2:E2` header Fecha \| Operador \| Sección Destino \| Motivo \| (Horas/empty), `A3:E1000` eventual (not daily mandatory). Any date valid as stored; Motivo optional; Horas col unused/empty.
+
+**Per-row incremental (silent until complete):**
+```
+User edits Apoyo!A3:E1000 (one row or bulk paste)
+ → onEdit: range ∩ Apoyo!A3:E1000 ? if not → ignore
+ → for each edited row: completeness = Fecha valid ISO (parseable date) AND Operador trimmed non-empty AND Sección Destino trimmed non-empty
+   → incomplete → silent (no toast, no Registro write) — user may still be filling
+   → complete   → Lock → upsert Registro with is_apoyo=TRUE, code="", code_label="", D=Sección Destino, E=Operador, F=Fecha as stored (no window), L=Motivo (trimmed, may be ""), status=active
+               → toast "✅ Apoyo registrado: {operator} — {date} → {section}" (single) or bulk "✅ Apoyo: N registrados, M pendientes (incompletos)"
+```
+
+**Partial-row example:** User types `Operador=Juan` in `B5` but leaves `Fecha` empty → no toast, no write. Later fills `A5=2026-03-15` and `C5=Preparacion` → row now complete → upsert triggered.
+
+**Whole-table not scanned:** Normal `onEdit` processes **only edited row(s)**. Whole-table `A3:E1000` scan occurs only via `Asistencia → Backfill histórico` (idempotent, skips incomplete rows).
+
+| Scenario | UX |
+|----------|----|
+| Apoyo row incomplete (missing Fecha/Operador/Sección Destino or invalid Fecha) | Silent — no error toast, no write |
+| Apoyo row becomes complete | Toast `✅ Apoyo registrado: {operator} — {date} → {section}`; write with `is_apoyo=TRUE`, `code=""`, `L=Motivo` |
+| Apoyo bulk paste (multiple rows) | Per-row completeness; toast `✅ Apoyo: N registrados, M pendientes (incompletos)` |
+| Apoyo Fecha any date (past/future) | Allowed — no window filter |
+| Edit complete Apoyo row (e.g., change Motivo) | Update in place (`L`, `updated_at`); toast `✅ Apoyo actualizado: {operator} — {date}` |
+
 ## 12. Out of Scope for v1
 
 | Item | Why deferred |
@@ -392,4 +419,4 @@ Responsable selects cell with code (e.g., Preparacion!G22) → Asistencia → Ag
 
 Playwright evidence: see `docs/playwright-evidence/Preparacion-analysis.md` and live captures `live-*.png`. No repro tutorial in PRD.
 
-*End of PRD v0.3.2 — clarified toast per atomic action and nota view/edit (FR-014/US-10/EC-12/§11.4/§11.6), awaiting validation before SDD.*
+*End of PRD v0.3.3 — Apoyo as growing eventual table (FR-007/EC-13/§5.1/§9/§11.7): A2:E2 header Fecha | Operador | Sección Destino | Motivo | (Horas/empty), A3:E1000 per-row incremental, silent until complete, no window/code, any date, whole-table scan only on Backfill, awaiting validation before SDD.*
