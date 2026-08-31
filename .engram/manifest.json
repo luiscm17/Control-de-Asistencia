@@ -8,6 +8,14 @@
       "sessions": 3,
       "memories": 14,
       "prompts": 44
+    },
+    {
+      "id": "b90cf0d3",
+      "created_by": "luis-cm",
+      "created_at": "2026-08-31T20:17:24Z",
+      "sessions": 0,
+      "memories": 1,
+      "prompts": 49
     }
   ]
 }
