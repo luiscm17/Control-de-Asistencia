@@ -490,12 +490,7 @@ function onEdit(e) {
         e.source.toast('⚠️ Hoja2 no accesible — sin validación.', 'Asistencia', 5);
         return;
       }
-      // Lightweight Apoyo code validation toast
-      const apoyoVals = sheet.getRange(CONFIG.APOYO_A3_ROW, CONFIG.APOYO_A3_COL_START, 1, CONFIG.APOYO_A3_COL_END).getValues()[0];
-      const apoyoCode = String(apoyoVals[3] || '').trim();
-      if (apoyoCode !== '' && !isCodeValid(apoyoCode)) {
-        e.source.toast('⚠️ Código no válido en Apoyo. Use A, AT, BM o F.', 'Asistencia', 5);
-      }
+      // Apoyo is growing table A3:E — no code validation (default A)
       return;
     }
     if (!rangeIntersectsInput(e.range)) return;
