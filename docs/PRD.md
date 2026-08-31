@@ -2,10 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.3.3 |
+| **Version** | 0.3.4 |
 | **Author** | [Placeholder — assign owner] |
 | **Date** | 2026-08-31 |
-| **Status** | Draft - Apoyo as growing table |
+| **Status** | Draft - month change reload |
 | **Source** | Google Sheet `1GrZ_9w3CPvsJ22nVCndFojkhrhGmFGY8XcLQrtW7jTs` (native, converted 2026-08-31 from `1iw9bduLeGXQMbjmMV1qrMqE2WoPWCBz3` xlsx; gid `740536758` = Preparacion) |
 | **Repo** | `/home/luis-cm/Documents/Github/Control-de-Asistencia` |
 | **Evidence** | `docs/playwright-evidence/Preparacion-analysis.md` (playwright-cli 0.1.18) |
@@ -98,6 +98,8 @@ Locale: `SI.ERROR`=`IFERROR`, `BUSCARV`=`VLOOKUP`, `DIASEM`=`WEEKDAY`, `CONTAR.S
 
 Validation: `streamrows` 4 entries (`A,AT,BM,F`) + `ARRAYFORMULA(OR(TRIM(EXACT(...))))` on `E15:AI44`; `t-text-color-cond-fmt` exists. Blank allowed. Calendar dynamic — `S7:U7`/`S9:U9` regen `E11:AI13`; blank `E11` (`SI.ERROR→""`) → ignore column. `Hoja2` critical — deletion blanks `E12`/`W7`. Merged ranges → `trim` + accept `S7:U7`. Writes strictly `E15:AI44`.
 
+> **v0.3.4 — Month/year change carryover (stakeholder confirmed, Option 1):** Changing `S7:U7` (year) or `S9:U9` (month) currently only recalculates `E11:AI11`/`E12:AI12` via Sheet formulas (`V9`/`W7` etc.) and does **not** clear `E15:AI44`, causing visual carryover (previous month's codes remain visible under new dates). Desired behavior is **confirm + reload from `Registro`** — see FR-006 and §11.8. `isCalendarRange` no longer returns early with zero writes; it triggers the confirmation dialog and, on Yes, clears + repopulates `E15:AI44` from `Registro` for the selected section/month/year (read-only; never creates `Registro` rows directly).
+
 ### 5.3 Playwright Deep Dive (Preparacion, gid 740536758)
 
 Verified live via `playwright-cli 0.1.18` anonymous view-only: grid is single `<canvas>` 1264×524 (`freezebar-handle` intercepts clicks, snapshot has no cell text); name-box navigation (`input#t-name-box` + `div#t-formula-bar-input` + `streamrows`/`selection`) is only reliable method; Spanish formulas confirmed; anon cannot write (Share disabled, `401`).
@@ -132,7 +134,7 @@ Full dump in `docs/playwright-evidence/Preparacion-analysis.md`.
 | **FR-003** | Clearing a cell sets `status=void` (soft-delete). | Must |
 | **FR-004** | Correction (`F→A`) updates row in place, `updated_at` refreshed. | Must |
 | **FR-005** | Bulk paste: each cell in `paste∩E15:AI44` with valid `E11` processed individually; toast `N ins / M upd / K void`. | Must |
-| **FR-006** | Changing `S7:U7`/`S9:U9` (regen `E11:AI13`, `V9`/`W7`) creates **no** rows. Only `E15:AI44` triggers writes. | Must |
+| **FR-006** | Calendar change with confirm and reload — On edit of `S7:U7` (year) or `S9:U9` (month) (`isCalendarRange`), show confirmation dialog `¿Cambiaste a [Month Year], recargar desde Registro? Esto limpiará E15:AI44 y cargará los registros de ese mes desde Registro.` — `E11:AI11`/`E12:AI12` still recalc via Sheet formulas (`V9`/`W7`). If user confirms **Yes**: clear `E15:AI44` content and notes (`clearContent` + `clearNote`), then read `Registro` filtered by `section = current sheet logical section` and `date` between first and last day of selected month/year, and repopulate `E15:AI44` with `code` and `setNote` with `nota` where exists. If user cancels **No**: do nothing (leave grid as is, no `Registro` writes, no clear). Changing month/year **never** creates `Registro` rows directly; only repopulation reads. Revert (e.g. Sept → Aug) follows same flow and reloads the target month's view from `Registro`. | Must |
 | **FR-007** | `Apoyo` is growing log table `A2:E2` header Fecha \| Operador \| Sección Destino \| Motivo \| (Horas/empty), data `A3:E1000` — eventual, not daily mandatory, distinct from attendance sheets (no window, no code validation, no Agregar nota flow). No `today/today-1` window (`America/La_Paz`) and no `A/AT/BM/F` validation; Motivo optional; Horas col unused; any Fecha valid as stored. Automatic registration is **per-row incremental**: only the edited row(s) `A3:E1000` that become **complete** (`Fecha` valid ISO + `Operador` non-empty + `Sección Destino` non-empty) are upserted to `Registro` with `is_apoyo=TRUE`, `code=""`, `code_label=""`, `nota=Motivo` (trimmed, may be empty), `date=Fecha` as stored; intermediate/partial edits are silent (no error toast, no write). `D=Sección Destino`, `L=Motivo`. No whole-table scan on normal `onEdit`; whole-table scan only for Backfill (idempotent). | Must |
 | **FR-008** | Only `A,AT,BM,F` (and empty) accepted; other → toast, no write. | Must |
 | **FR-009** | One-time backfill: scan 6 logical sections `E15:AI44` where `E11` valid + non-empty → upsert. Idempotent. Handle merged `S7:U7`. | Must |
@@ -225,6 +227,7 @@ Full dump in `docs/playwright-evidence/Preparacion-analysis.md`.
 | EC-11 | Grace window `today/today-1` | ISO `fecha_col` vs Lima `today/today-1` (`Utilities.formatDate`); per-cell; RRHH bypass audited |
 | EC-12 | Nota optional per-cell (any code) — toast per action + view/edit | `Registro!L` (`nota`) optional for any code (`A/AT/BM/F`), `""` default, no history — overwrites current value. Rapid dropdown/bulk (`E15:AI44` with data validation) saves code with `nota=""` and no per-cell modal; menu is persistent post-bulk. Toast per atomic action: code `✅ Registrado`, nota save `✅ Nota guardada`, nota update `✅ Nota actualizada`, nota delete `🗑️ Nota borrada`. **Visualize:** hover shows cell `Note` via `setNote()` (`"F — motivo"`); `Registro!L` is filterable list. **Edit:** `Asistencia → Agregar/editar nota a celda activa` opens modal pre-filled with current `Registro!L` if exists; user can edit, clear (empty → `clearNote()` + `L=""`), or cancel. If no `record_id` yet → `⚠️ No hay registro para esta fecha — primero marcá el código.` (nota alone creates no row). Window-gated (FR-013) + permission; out-of-window/blocked → toast `⛔ Solo podés registrar hoy y ayer…`, no write, log `Errors`. Subsequent code correction preserves `nota` unless overwritten via menu. `setNote()` mirror is view aid, never source of truth. |
 | EC-13 | Apoyo — partial row silent, table growth, no window/code, per-row only | Growing table `A2:E2` header Fecha \| Operador \| Sección Destino \| Motivo \| (Horas/empty), data `A3:E1000` eventual (not daily). Per-row incremental: only edited row(s) `A3:E1000` are evaluated. Intermediate/partial edits (missing `Fecha`/`Operador`/`Sección Destino` or invalid `Fecha`) are **silent** — no error toast, no `Registro` write — to allow user to fill row over time. Row becomes **complete** when `Fecha` is valid ISO + `Operador` non-empty (trimmed) + `Sección Destino` non-empty → upsert `is_apoyo=TRUE`, `code=""`, `code_label=""`, `nota=Motivo` (trimmed, may be empty), `date=Fecha` as stored; Horas col unused. Any date valid (no `today/today-1` window), no `A/AT/BM/F` validation, no `Agregar nota` modal. Subsequent edit to same row that keeps it complete → update in place (`updated_at`/`nota`/`section` if changed); clearing required field or invalidating Fecha → no new write (existing row unchanged; explicit clear via menu/backfill only). Bulk paste on `Apoyo` → per-row same completeness check. Whole-table scan **only** on Backfill (idempotent, `LockService`); never on normal `onEdit`. Table may grow beyond 1000 — extend range as needed; never `clear` whole table. |
+| EC-14 | Month/year change revert and reload (FR-006) | `S7:U7`/`S9:U9` edit triggers `isCalendarRange` confirm dialog, not a silent no-op. **Yes** → `clearContent` + `clearNote` on `E15:AI44`, then query `Registro` where `section = logical section` and `date ∈ [firstDay, lastDay]` of selected month/year → write `code` to matching `(operator, date)` cell and `setNote("CODE — nota")` where `nota` non-empty; blank `E11` columns skipped. **No** → leave grid as is, no clear, no `Registro` reads/writes. Navigation is reversible: Sept → Aug reloads Aug view; Aug → Sept reloads Sept view. Never creates `Registro` rows on calendar change alone; `E11`/`E12`/`W7` still recalc via formulas regardless of dialog choice. |
 
 ## 11. UX / Flow
 
@@ -338,6 +341,41 @@ User edits Apoyo!A3:E1000 (one row or bulk paste)
 | Apoyo Fecha any date (past/future) | Allowed — no window filter |
 | Edit complete Apoyo row (e.g., change Motivo) | Update in place (`L`, `updated_at`); toast `✅ Apoyo actualizado: {operator} — {date}` |
 
+### 11.8 Month/Year Change — Confirm and Reload (FR-006, EC-14)
+
+**Problem:** Changing `S7:U7` (year) or `S9:U9` (month) recalculates `E11:AI11`/`E12:AI12` via Sheet formulas but previously left `E15:AI44` untouched, so previous month's codes remain visible under new dates (visual carryover).
+
+**Flow — `isCalendarRange` edit:**
+```
+User edits S7:U7 (year) or S9:U9 (month) on a section sheet
+ → onEdit detects isCalendarRange (merged S7:U7 / S9:U9)
+ → Sheet formulas recalc E11:AI11 (=+E13&"/"&$V$9&"/"&$S$7), E12:AI12, V9, W7 automatically
+ → show confirmation dialog:
+   "¿Cambiaste a [Month Year], recargar desde Registro? Esto limpiará E15:AI44 y cargará los registros de ese mes desde Registro."
+   [Sí] [No]
+ → No  → do nothing (leave E15:AI44 as is, no Registro reads/writes)
+ → Sí  → clearContent + clearNote on E15:AI44
+        → read Registro filtered by section = current sheet logical section
+          and date ∈ [firstDayOfMonth, lastDayOfMonth] for selected month/year
+        → for each matching row: write code to cell at (operator row, date column) and setNote("CODE — nota") where nota non-empty
+        → toast "✅ Recargado: {month year} — N registros" (or "— sin registros" if none)
+```
+
+**Rules:**
+- Changing month/year **never** creates `Registro` rows directly; only repopulation reads.
+- Revert is same flow: Sept → Aug reloads Aug view; Aug → Sept reloads Sept view. Grid is always a view of `Registro` for the selected month after confirmation.
+- `E11` blank columns (`SI.ERROR→""`, e.g. 31/09) are skipped during repopulation.
+- `W7`/`AJ:AM` continue to derive from recalculated `E12`/`E13` — no script recompute.
+- Window/permission (FR-013) does **not** gate the reload read; it gates subsequent edits to `E15:AI44`.
+
+| Scenario | UX |
+|----------|----|
+| Edit `S7:U7` or `S9:U9` | Confirmation dialog as above; no immediate `Registro` write |
+| Confirm Yes | Clear `E15:AI44` + reload from `Registro` for that section/month/year; toast with count |
+| Confirm No / dismiss | No clear, no read, grid left as is |
+| Revert Sept → Aug → Yes | Clears Sept carryover, loads Aug records |
+| No records for month | Grid cleared, toast `✅ Recargado: {month year} — sin registros` |
+
 ## 12. Out of Scope for v1
 
 | Item | Why deferred |
@@ -419,4 +457,4 @@ User edits Apoyo!A3:E1000 (one row or bulk paste)
 
 Playwright evidence: see `docs/playwright-evidence/Preparacion-analysis.md` and live captures `live-*.png`. No repro tutorial in PRD.
 
-*End of PRD v0.3.3 — Apoyo as growing eventual table (FR-007/EC-13/§5.1/§9/§11.7): A2:E2 header Fecha | Operador | Sección Destino | Motivo | (Horas/empty), A3:E1000 per-row incremental, silent until complete, no window/code, any date, whole-table scan only on Backfill, awaiting validation before SDD.*
+*End of PRD v0.3.4 — Month/year change with confirm+reload (FR-006/EC-14/§11.8): isCalendarRange now shows "¿Cambiaste a [Month Year], recargar desde Registro?..." — Yes clears E15:AI44 and reloads from Registro for section+month/year, No leaves grid as is; never creates Registro rows directly. Apoyo as growing eventual table (FR-007/EC-13/§5.1/§9/§11.7) unchanged, awaiting validation before SDD.*
