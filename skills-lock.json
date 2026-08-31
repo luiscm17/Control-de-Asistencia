@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "google-apps-script": {
+      "source": "jezweb/claude-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/integrations/skills/google-apps-script/SKILL.md",
+      "computedHash": "6e8c18a18adcf0ed974ed3a51a765a4877d8d5931a3fa62390f23536c10edab2"
+    }
+  }
+}

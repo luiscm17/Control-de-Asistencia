@@ -1,0 +1,54 @@
+schema: spec-driven
+
+context: |
+  Tech stack: Google Apps Script (V8) — SpreadsheetApp/LockService/Session/Utilities, no npm/pip, Spanish locale es-BO
+  Architecture: 6 section sheets (E15:AI44, 30 ops each) -> Registro (13 cols A:M, PK section-operator_name-date) via installable onEdit + Sheets API v4
+  Testing: No runner/linter/formatter/coverage — docs-only repo, apps-script/ not yet created
+  Style: Spanish formulas verbatim (SI.ERROR/BUSCARV/DIASEM/CONTAR.SI), incremental per-cell upsert, Config!A:B logical sections, window today/today-1 America/Lima
+  Constraints: No external deps, clasp under tools/ only, 90 min/day trigger quota, LockService per write, canvas never scraped (input#t-name-box + streamrows)
+
+rules:
+  proposal:
+    - Include rollback plan for risky changes
+    - Reference PRD v0.3.0 sections 5.2-5.3, 7-10, 13 as source of truth
+  specs:
+    - Use Given/When/Then for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+  design:
+    - Include sequence diagrams for onEdit -> Registro upsert flow
+    - Document Spanish locale handling and America/Lima timezone decisions
+  tasks:
+    - Group by phase, use hierarchical numbering
+    - Keep tasks completable in one session
+  apply:
+    guidelines:
+      - Follow existing Spanish formula conventions verbatim
+      - Respect E15:AI44 + Hoja2 boundaries, never modify Hoja2
+      - Verify on sheet COPY only, never prod (1iw9bduLeGXQMbjmMV1qrMqE2WoPWCBz3)
+    tdd: false
+    test_command: ""
+  verify:
+    test_command: ""
+    build_command: ""
+    coverage_threshold: 0
+  archive:
+    - Warn before merging destructive deltas
+
+testing:
+  strict_tdd: false
+  reason: "No test runner detected — docs-only repo without package.json, go.mod, pyproject.toml, or any test config. Strict TDD unavailable until apps-script/ lands and a GAS-compatible test approach is chosen."
+  runner: none
+  layers:
+    unit: false
+    integration: false
+    e2e: false
+  coverage: false
+  linter: false
+  type_checker: false
+  formatter: false
+
+project:
+  name: control-de-asistencia
+  remote: https://github.com/luiscm17/Control-de-Asistencia.git
+  branch: main
+  sheet_id: 1iw9bduLeGXQMbjmMV1qrMqE2WoPWCBz3
