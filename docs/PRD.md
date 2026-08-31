@@ -2,10 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.3.0 |
+| **Version** | 0.3.2 |
 | **Author** | [Placeholder — assign owner] |
 | **Date** | 2026-08-31 |
-| **Status** | Draft |
+| **Status** | Draft - clarified toast and view/edit for nota |
 | **Source** | Google Sheet `1GrZ_9w3CPvsJ22nVCndFojkhrhGmFGY8XcLQrtW7jTs` (native, converted 2026-08-31 from `1iw9bduLeGXQMbjmMV1qrMqE2WoPWCBz3` xlsx; gid `740536758` = Preparacion) |
 | **Repo** | `/home/luis-cm/Documents/Github/Control-de-Asistencia` |
 | **Evidence** | `docs/playwright-evidence/Preparacion-analysis.md` (playwright-cli 0.1.18) |
@@ -128,7 +128,7 @@ Full dump in `docs/playwright-evidence/Preparacion-analysis.md`.
 | ID | Requirement | Priority |
 |----|-------------|----------|
 | **FR-001** | On edit in `E15:AI44` (6 logical sections, physical tabs resolved via Config), capture `(section, operator_name, date, code, edited_by, timestamp, source_range, is_apoyo, nota, status)` and upsert into `Registro` after FR-013 gate. Date via `E11:AI11` (`=+E13&"/"&$V$9&"/"&$S$7`); gate: `activeUser==responsible(section)` (`Config!A:B` or header) AND `fecha_col∈{today,today-1}` Lima. Fail → toast + optional revert, no write. | Must |
-| **FR-002** | `Registro` schema fixed (§9); header frozen, never reordered. | Must |
+| **FR-002** | `Registro` schema fixed (§9); header frozen, never reordered. Col `L` (`nota`) is optional per-cell nota for any code (FR-014) — empty default, overwrite, no history; set via menu + optional `setNote()`. | Must |
 | **FR-003** | Clearing a cell sets `status=void` (soft-delete). | Must |
 | **FR-004** | Correction (`F→A`) updates row in place, `updated_at` refreshed. | Must |
 | **FR-005** | Bulk paste: each cell in `paste∩E15:AI44` with valid `E11` processed individually; toast `N ins / M upd / K void`. | Must |
@@ -137,9 +137,10 @@ Full dump in `docs/playwright-evidence/Preparacion-analysis.md`.
 | **FR-008** | Only `A,AT,BM,F` (and empty) accepted; other → toast, no write. | Must |
 | **FR-009** | One-time backfill: scan 6 logical sections `E15:AI44` where `E11` valid + non-empty → upsert. Idempotent. Handle merged `S7:U7`. | Must |
 | **FR-010** | Every row stores `edited_by` (email or `unknown`) and `edited_at` in `America/La_Paz`. | Should |
-| **FR-011** | Menu `Asistencia → Ver Registro / Re-sincronizar / Solicitar corrección / Registro manual / Backfill` (correction bypasses FR-013, audited). | Should |
+| **FR-011** | Menu `Asistencia → Ver Registro / Re-sincronizar / Agregar/editar nota a celda activa / Solicitar corrección / Registro manual / Backfill` (correction/bypass via menu audited; nota via modal §11.6, window-gated). | Should |
 | **FR-012** | Mapping `A→Asistencia, F→Falta, AT→Tardanza, BM→Baja Médica` in config, not hardcoded. | Should |
-| **FR-013** | Window + permission: `fecha_col==today OR today-1` Lima (`Utilities.formatDate(new Date(),"America/La_Paz","yyyy-MM-dd")` from `E11` ISO). Gate: `activeUser==responsible(section)` (`Config!A:B ?? header`) AND `fecha_col∈{today,today-1}`. Blocked → toast `⛔ Solo podés registrar hoy y ayer…`, optional revert, no write, log `Errors`. RRHH override via menu (`via_manual`). Per-cell for bulk. | Must |
+| **FR-013** | Window + permission: `fecha_col==today OR today-1` Lima (`Utilities.formatDate(new Date(),"America/La_Paz","yyyy-MM-dd")` from `E11` ISO). Gate: `activeUser==responsible(section)` (`Config!A:B ?? header`) AND `fecha_col∈{today,today-1}`. Applies to code writes **and** `nota` updates (FR-014). Blocked → toast `⛔ Solo podés registrar hoy y ayer…`, optional revert, no write, log `Errors`. RRHH override via menu (`via_manual`). Per-cell for bulk. | Must |
+| **FR-014** | Optional per-cell `nota` for **any** code (`A/AT/BM/F`) stored per `record_id` in `Registro!L`; empty (`""`) if omitted. No history/bitácora — `nota` overwrites current value (no version table). Entry via `Asistencia → Agregar/editar nota a celda activa` HtmlService modal (pre-filled with current `Registro!L` if exists) that updates same `record_id`'s `L` and cell `Note` via `setNote()` / `clearNote()`. Rapid/dropdown entry in `E15:AI44` (incl. data validation, bulk paste) saves code immediately with `nota=""` and no per-cell modal — menu is persistent post-bulk. Every atomic action has its own toast: code `✅ Registrado`, nota save `✅ Nota guardada`, nota update `✅ Nota actualizada`, nota delete `🗑️ Nota borrada`. Visualize without opening: hover shows cell `Note` (`"F — motivo"`) and `Registro!L` is filterable list. Menu gated by FR-013 window + permission; out-of-window/blocked → toast, no write, log `Errors`, audited via `edited_by`. If active cell has no existing `Registro` row (code not yet registered) → toast `⚠️ No hay registro para esta fecha — primero marcá el código.` — nota alone creates no row. | Must |
 
 ### 7.2 User Stories
 
@@ -154,6 +155,7 @@ Full dump in `docs/playwright-evidence/Preparacion-analysis.md`.
 | US-07 | RRHH | see who/when | audit | FR-010 |
 | US-08 | Responsable | log `Apoyo` | traceable | FR-007 |
 | US-09 | Responsable | correct yesterday (`today-1` Lima) | fix w/o RRHH | FR-013 |
+| US-10 | Responsable | add/edit optional per-cell nota via menu to any code (`A/AT/BM/F`) after rapid entry, with distinct toast per action | add context per day without slowing dropdown/bulk flow and get confirmation per atomic action | FR-014 |
 
 ## 8. Non-Functional Requirements
 
@@ -185,12 +187,14 @@ Full dump in `docs/playwright-evidence/Preparacion-analysis.md`.
 | I | `is_apoyo` | BOOLEAN | `FALSE` | `TRUE` if from `Apoyo` |
 | J | `edited_by` | STRING | `resp.prep@factory.pe` | Email or `unknown` |
 | K | `source_range` | STRING | `Preparacion!G22` | A1 traceability |
-| L | `nota` | STRING | `apoyo en conera 4` | `Apoyo!E3 Motivo` |
+| L | `nota` | STRING | `apoyo en conera 4` / `""` | Optional per-cell nota for **any** code (`A/AT/BM/F`), empty (`""`) default. No history/bitácora — overwrites current value. Set via menu `Agregar/editar nota a celda activa` → `Registro!L` + optional cell `Note` via `setNote()`. For `Apoyo` rows `L=Apoyo!E3` initially; editable same way. |
 | M | `status` | ENUM | `active` | `active`/`void` |
 
 > `weekday`/`month`/`year` not stored — derive from `F`.
 
 > Storage model: section sheets are whole-month views, Apps Script saves only changed marks via incremental upsert per cell. `F` is temporal key; month view via `FILTER`/`QUERY` by `F`. `Apoyo` 5-col `A3:E3` → `D`/`L` uniform.
+
+> `L` (`nota`): optional per-cell nota for any code, `""` default, no history/bitácora — overwrites current value. Code edits via `onEdit` leave `L` untouched unless set via menu modal; `nota` edits update `L` + optional cell `Note` via `setNote()` on same `record_id` (FR-014).
 
 ### 9.2 PK & Indexes
 
@@ -219,6 +223,7 @@ Full dump in `docs/playwright-evidence/Preparacion-analysis.md`.
 | EC-09 | Sheet rename / placeholder / `Hoja2` | Logical sections via `Config!A:B` (sheet ID → logical section); placeholder tab name → warning if unmapped. Validate `Hoja2!A1:B12`/`D1:E7` on install+`onEdit` |
 | EC-10 | Manual `Registro` edits | Discouraged; next upsert overwrites `code`/`updated_at`, preserves `created_at` |
 | EC-11 | Grace window `today/today-1` | ISO `fecha_col` vs Lima `today/today-1` (`Utilities.formatDate`); per-cell; RRHH bypass audited |
+| EC-12 | Nota optional per-cell (any code) — toast per action + view/edit | `Registro!L` (`nota`) optional for any code (`A/AT/BM/F`), `""` default, no history — overwrites current value. Rapid dropdown/bulk (`E15:AI44` with data validation) saves code with `nota=""` and no per-cell modal; menu is persistent post-bulk. Toast per atomic action: code `✅ Registrado`, nota save `✅ Nota guardada`, nota update `✅ Nota actualizada`, nota delete `🗑️ Nota borrada`. **Visualize:** hover shows cell `Note` via `setNote()` (`"F — motivo"`); `Registro!L` is filterable list. **Edit:** `Asistencia → Agregar/editar nota a celda activa` opens modal pre-filled with current `Registro!L` if exists; user can edit, clear (empty → `clearNote()` + `L=""`), or cancel. If no `record_id` yet → `⚠️ No hay registro para esta fecha — primero marcá el código.` (nota alone creates no row). Window-gated (FR-013) + permission; out-of-window/blocked → toast `⛔ Solo podés registrar hoy y ayer…`, no write, log `Errors`. Subsequent code correction preserves `nota` unless overwritten via menu. `setNote()` mirror is view aid, never source of truth. |
 
 ## 11. UX / Flow
 
@@ -246,9 +251,11 @@ Empty cell → lookup `record_id` → if found `status=void` → toast `"🗑️
 
 | Scenario | UX |
 |----------|----|
-| Invalid code | Toast, no write |
-| Out-of-window | Toast `⛔ Solo podés registrar hoy y ayer…`, no write, log |
-| Wrong section | Toast `⛔ No tenés permiso para esta sección.`, no write |
+| Invalid code | Toast `⚠️ Código no válido. Use A, AT, BM o F.`, no write |
+| Out-of-window (code or nota) | Toast `⛔ Solo podés registrar hoy y ayer…`, no write, log `Errors` |
+| Wrong section (code or nota) | Toast `⛔ No tenés permiso para esta sección.`, no write, log `Errors` |
+| Nota — no record yet | Toast `⚠️ No hay registro para esta fecha — primero marcá el código.` — nota alone creates no row |
+| Nota — invalid cell / blank date | Toast `⚠️ Seleccioná una celda con fecha válida en E15:AI44.` — no write |
 | Lock timeout | `⏳ ocupado, reintentando…` → retry → `❌ Use Re-sincronizar.` |
 | `Registro` missing | Create header then proceed |
 | `Hoja2` failure | Toast `⚠️ Hoja2 no accesible` + log |
@@ -257,10 +264,52 @@ Empty cell → lookup `record_id` → if found `status=void` → toast `"🗑️
 ### 11.5 Menu
 
 ```
-Asistencia → Ver Registro | Re-sincronizar fila | Solicitar corrección (RRHH bypass, audited)
-           → Registro manual (alias) | Backfill histórico (confirm) | Autorizar
+Asistencia → Ver Registro | Re-sincronizar fila | Agregar/editar nota a celda activa
+           → Solicitar corrección (RRHH bypass, audited) | Registro manual (alias)
+           → Backfill histórico (confirm) | Autorizar
 ```
-Toasts only, no modals on normal edits.
+Toasts only on normal `onEdit`; HtmlService modal only via `Agregar/editar nota a celda activa` (FR-014).
+
+### 11.6 Notas (optional per-cell) — FR-014
+
+**Principle:** Nota is optional, per `record_id`, for **any** code (`A/AT/BM/F`). Never blocks rapid entry. Stored in `Registro!L` (`""` default, overwrites — no history/bitácora); cell mirror via `setNote()` is view aid only. **Toast per atomic action** — not just code: each action has its own confirmation toast (code vs nota save/update/delete).
+
+**Rapid / bulk entry (no modal):**
+```
+Responsable selects dropdown A/AT/BM/F in E15:AI44 (or pastes 30 cells)
+ → onEdit saves code immediately with nota="" (bulk: per-cell window+permission)
+ → toast single "✅ Registrado: Juan Pérez — 2026-03-15 = F" or bulk "✅ Sincronizados: 12 ins, 3 upd, 1 void, 2 fuera de ventana."
+ → no per-cell modal shown; menu remains persistent post-bulk
+```
+
+**Visualize (without opening modal):**
+- Hover any cell in `E15:AI44` that has a nota → native cell `Note` via `setNote()` shows `"F — motivo"` (or code + nota). No click needed.
+- `Registro!L` column is the filterable list of all notas (filter by operator, section, date, code).
+
+**Edit via menu (modal, window-gated):**
+```
+Responsable selects cell with code (e.g., Preparacion!G22) → Asistencia → Agregar/editar nota a celda activa
+ → HtmlService modal opens: operator (col B), date (E11 → ISO), code (cell value), textarea pre-filled with current Registro!L nota if exists
+ → actions: Guardar / Cancelar / Borrar nota (or clearing textarea + Guardar)
+ → on Save: validate active cell ∈ E15:AI44, E11 valid, record_id exists, window+permission (FR-013) via America/La_Paz
+   → allowed + non-empty nota (new)      → Lock → Registro!L = trimmed nota, setNote(cell, "CODE — nota"), updated_at/edited_by → toast "✅ Nota guardada: Juan Pérez — 2026-03-15"
+   → allowed + non-empty nota (overwrite) → Lock → Registro!L = trimmed nota, setNote(cell, "CODE — nota"), updated_at/edited_by → toast "✅ Nota actualizada: Juan Pérez — 2026-03-15"
+   → allowed + empty textarea            → Lock → Registro!L = "", clearNote(cell), updated_at/edited_by → toast "🗑️ Nota borrada: Juan Pérez — 2026-03-15"
+   → cancel → no write, no toast
+```
+
+| Scenario | UX |
+|----------|----|
+| Visualize — hover cell with nota | Cell `Note` tooltip `"F — motivo"` via `setNote()`; no modal |
+| Visualize — list view | Filter `Registro!L` by operator/section/date/code |
+| No active cell / active cell ∉ `E15:AI44` or `E11` blank | Toast `⚠️ Seleccioná una celda con fecha válida en E15:AI44.` — no write |
+| No existing `Registro` row (code not yet registered) | Toast `⚠️ No hay registro para esta fecha — primero marcá el código.` — nota alone creates no row |
+| Out-of-window / wrong section (FR-013) | Toast `⛔ Solo podés registrar hoy y ayer…` or `⛔ No tenés permiso para esta sección.` — no write, log `Errors` |
+| Code registered (rapid/bulk) | Toast `✅ Registrado: {operator} — {date} = {code}` |
+| Nota save (first time) | Toast `✅ Nota guardada: {operator} — {date}` (`nota` written to `L` + `setNote()`) |
+| Nota update (overwrite) | Toast `✅ Nota actualizada: {operator} — {date}` (`nota` overwrites previous, audited via `edited_by`, no history) |
+| Nota delete (clear textarea / Borrar) | Toast `🗑️ Nota borrada: {operator} — {date}` (`L=""` + `clearNote()`) |
+| Bulk — notas unaffected | Code bulk toast only; existing `L` preserved unless edited via menu |
 
 ## 12. Out of Scope for v1
 
@@ -275,6 +324,7 @@ Toasts only, no modals on normal edits.
 | Undo UI | Version history suffices |
 | Multi-year nav | `BUSCARV`/`DIASEM` sufficient |
 | Canvas/DOM scraping | Disproven — use API v4 |
+| History / bitácora for `nota` | Out of scope — `nota` overwrites current `Registro!L`; no version table. Audit via `edited_by/updated_at` only |
 
 ## 13. Open Questions — Before Spec
 
@@ -292,6 +342,7 @@ Toasts only, no modals on normal edits.
 | Q8 | `Apoyo` one vs two rows? | One row with `is_apoyo=TRUE` — avoid duplication. |
 | Q9 | Cutoff time? | `today` and `today-1` (`America/La_Paz`) — older dates via RRHH menu (`via_manual`). |
 | Q10 | Operator master? | Sheets as master v1; central directory deferred. |
+| Q11 | Per-cell `nota` scope & history? | **Resolved (v0.3.1–v0.3.2, stakeholder confirmed):** Optional per-cell `nota` for **any** code (`A/AT/BM/F`), not only `F/BM`. Stored per `record_id` in `Registro!L`, `""` default, no history/bitácora — overwrites current value. Rapid/dropdown + bulk saves code with `nota=""` (no per-cell modal; menu persistent post-bulk); add/edit via `Asistencia → Agregar/editar nota a celda activa` HtmlService modal pre-filled with current `Registro!L`, window-gated (FR-013 `today/today-1` `America/La_Paz`) + permission, audited via `edited_by`; requires existing code row. Visualize via hover `setNote("F — motivo")` + filterable `Registro!L`; toast per atomic action (`✅ Registrado` / `✅ Nota guardada` / `✅ Nota actualizada` / `🗑️ Nota borrada`). No bitácora table (out of scope §12). |
 
 ## 14. Next Steps
 
@@ -341,4 +392,4 @@ Toasts only, no modals on normal edits.
 
 Playwright evidence: see `docs/playwright-evidence/Preparacion-analysis.md` and live captures `live-*.png`. No repro tutorial in PRD.
 
-*End of PRD v0.3.0 — awaiting validation before SDD.*
+*End of PRD v0.3.2 — clarified toast per atomic action and nota view/edit (FR-014/US-10/EC-12/§11.4/§11.6), awaiting validation before SDD.*
