@@ -62,9 +62,9 @@ function menuReSincronizarFila() {
     ss.toast('Seleccioná una fila dentro de E15:AI44 (fila ' + CONFIG.INPUT_ROW_START + '-' + CONFIG.INPUT_ROW_END + ').', 'Asistencia', 5);
     return;
   }
-  const operatorName = String(sh.getRange(activeRow, 2).getValue() || '').trim();
+  const operatorName = String(sh.getRange(activeRow, 3).getValue() || '').trim();
   if (!operatorName) {
-    ss.toast('Fila sin operador en columna B — no hay PK.', 'Asistencia', 5);
+    ss.toast('Fila sin operador en columna C — no hay PK.', 'Asistencia', 5);
     logToErrors(section, name + '!' + activeRow + ':' + activeRow, '', 'operator_missing_resync');
     return;
   }
@@ -152,7 +152,7 @@ function promptManualEntry(isRegistroManual) {
   }
   if (!iso) { ss.toast('⚠️ Fecha no válida: ' + fechaRaw, 'Asistencia', 5); logToErrors('', '', fechaRaw, 'fecha_invalida_manual'); return; }
 
-  const opResp = ui.prompt('Operador', 'Nombre exacto como en columna B (ej: Juan Pérez):', ui.ButtonSet.OK_CANCEL);
+  const opResp = ui.prompt('Operador', 'Nombre exacto como en columna C (ej: Juan Pérez):', ui.ButtonSet.OK_CANCEL);
   if (opResp.getSelectedButton() !== ui.Button.OK) return;
   const operatorName = opResp.getResponseText().trim();
   if (!operatorName) { ss.toast('Operador vacío — cancelado.', 'Asistencia', 5); return; }
