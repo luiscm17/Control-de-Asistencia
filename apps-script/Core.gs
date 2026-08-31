@@ -54,10 +54,7 @@ function handleEdit(e) {
     const allowed = [];
     let countInvalid = 0;
     let countWindowBlocked = 0;
-    let countPermBlocked = 0;
     let countBlankE11 = 0;
-    const activeEmail = Session.getActiveUser().getEmail() || 'unknown';
-    const responsible = getResponsibleEmail(section);
 
     for (let r = 0; r < editedValues.length; r++) {
       const sheetRow = r1 + r;
@@ -85,12 +82,6 @@ function handleEdit(e) {
           logToErrors(section, srcA1, normCode, 'fuera_ventana_' + iso);
           continue;
         }
-        if (responsible && activeEmail !== responsible && activeEmail !== 'unknown') {
-          countPermBlocked++;
-          const srcA1 = sheetName + '!' + sheet.getRange(sheetRow, sheetCol).getA1Notation();
-          logToErrors(section, srcA1, normCode, 'sin_permiso_responsable_' + responsible);
-          continue;
-        }
         const codeLabel = normCode ? (CONFIG.LABELS[normCode] || normCode) : '';
         const srcA1 = sheetName + '!' + sheet.getRange(sheetRow, sheetCol).getA1Notation();
         const rid = recordId(section, operatorName, iso);
@@ -106,15 +97,8 @@ function handleEdit(e) {
     }
 
     if (allowed.length === 0) {
-      if (countWindowBlocked > 0 || countPermBlocked > 0) {
-        let reason = '';
-        if (countWindowBlocked > 0) reason += countWindowBlocked + ' fuera de ventana';
-        if (countPermBlocked > 0) reason += (reason ? ', ' : '') + countPermBlocked + ' sin permiso';
-        if (countPermBlocked > 0) {
-          ss.toast('⛔ No tenés permiso para esta sección. (' + reason + ')', 'Asistencia', 7);
-        } else {
-          ss.toast('⛔ Solo podés registrar hoy y ayer (America/La_Paz). (' + reason + ')', 'Asistencia', 7);
-        }
+      if (countWindowBlocked > 0) {
+        ss.toast('⛔ Solo podés registrar hoy y ayer (America/La_Paz). (' + countWindowBlocked + ' fuera de ventana)', 'Asistencia', 7);
       }
       return;
     }
@@ -125,7 +109,7 @@ function handleEdit(e) {
     const ins = result.ins;
     const upd = result.upd;
     const voided = result.voided;
-    const totalWindowPerm = countWindowBlocked + countPermBlocked;
+    const totalWindowBlocked = countWindowBlocked;
 
     if (allowed.length === 1 && ins + upd + voided === 1) {
       const cand = allowed[0];
@@ -136,11 +120,11 @@ function handleEdit(e) {
       if (ins > 0) parts.push(ins + ' ins');
       if (upd > 0) parts.push(upd + ' upd');
       if (voided > 0) parts.push(voided + ' void');
-      if (totalWindowPerm > 0) parts.push(totalWindowPerm + ' fuera');
+      if (totalWindowBlocked > 0) parts.push(totalWindowBlocked + ' fuera');
       if (countInvalid > 0) parts.push(countInvalid + ' inválido(s)');
       if (parts.length > 0) ss.toast('✅ Sincronizados: ' + parts.join(' / '), 'Asistencia', 7);
     }
-    if (totalWindowPerm > 0 && allowed.length > 1) Logger.log('handleEdit window/perm blocked: ' + totalWindowPerm);
+    if (totalWindowBlocked > 0 && allowed.length > 1) Logger.log('handleEdit window blocked: ' + totalWindowBlocked);
   } catch (err) {
     Logger.log('handleEdit error: ' + err.message + ' stack: ' + err.stack);
     try {
@@ -165,7 +149,6 @@ function doBackfill(bypassWindow) {
   let sheetsScanned = 0;
 
   const allSheets = ss.getSheets();
-  const activeEmail = Session.getActiveUser().getEmail() || 'unknown';
   const lock = LockService.getDocumentLock();
 
   for (let s = 0; s < allSheets.length; s++) {
@@ -185,7 +168,6 @@ function doBackfill(bypassWindow) {
     const e11Row = sh.getRange(11, CONFIG.INPUT_COL_START, 1, CONFIG.INPUT_COL_END - CONFIG.INPUT_COL_START + 1).getDisplayValues()[0];
     const operatorRows = sh.getRange(CONFIG.INPUT_ROW_START, 3, CONFIG.INPUT_ROW_END - CONFIG.INPUT_ROW_START + 1, 1).getValues();
     const inputValues = sh.getRange(CONFIG.INPUT_ROW_START, CONFIG.INPUT_COL_START, CONFIG.INPUT_ROW_END - CONFIG.INPUT_ROW_START + 1, CONFIG.INPUT_COL_END - CONFIG.INPUT_COL_START + 1).getValues();
-    const responsible = getResponsibleEmail(section);
 
     const candidates = [];
     for (let r = 0; r < inputValues.length; r++) {
@@ -201,10 +183,6 @@ function doBackfill(bypassWindow) {
         const normCode = normalizeCode(trimmed);
         if (!isCodeValid(normCode)) { totalInvalid++; logToErrors(section, name + '!' + sh.getRange(CONFIG.INPUT_ROW_START + r, CONFIG.INPUT_COL_START + c).getA1Notation(), String(raw), 'codigo_invalido_backfill'); continue; }
         if (!bypassWindow && !isInWindow(iso)) { totalSkippedWindow++; continue; }
-        if (!bypassWindow && responsible && activeEmail !== responsible && activeEmail !== 'unknown') {
-          // For backfill, permission is checked per section; if cross-section, skip e log
-          totalSkippedWindow++; logToErrors(section, name + '!' + sh.getRange(CONFIG.INPUT_ROW_START + r, CONFIG.INPUT_COL_START + c).getA1Notation(), normCode, 'sin_permiso_backfill_' + responsible); continue;
-        }
         const codeLabel = CONFIG.LABELS[normCode] || normCode;
         const srcA1 = name + '!' + sh.getRange(CONFIG.INPUT_ROW_START + r, CONFIG.INPUT_COL_START + c).getA1Notation();
         candidates.push({
@@ -281,7 +259,7 @@ function commitRegistroBatch(candidates) {
     }
 
     const nowStr = Utilities.formatDate(new Date(), CONFIG.TIMEZONE, 'yyyy-MM-dd HH:mm:ss');
-    const editedBy = Session.getActiveUser().getEmail() || 'unknown';
+    const editedBy = 'unknown';
     let ins = 0;
     let upd = 0;
     let voided = 0;

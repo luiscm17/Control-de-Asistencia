@@ -96,8 +96,6 @@ function handleApoyoEdit(e, viaManual) {
     return;
   }
 
-  const activeEmail = Session.getActiveUser().getEmail() || 'unknown';
-  const responsible = getResponsibleEmail(seccion);
   const bypass = viaManual === true;
   if (!bypass) {
     if (!isInWindow(iso)) {
@@ -105,17 +103,12 @@ function handleApoyoEdit(e, viaManual) {
       logToErrors(seccion, CONFIG.APOYO_RANGE, normCode, 'fuera_ventana_apoyo_' + iso);
       return;
     }
-    if (responsible && activeEmail !== responsible && activeEmail !== 'unknown') {
-      ss.toast('⛔ No tenés permiso para sección ' + seccion + '.', 'Asistencia', 7);
-      logToErrors(seccion, CONFIG.APOYO_RANGE, normCode, 'sin_permiso_responsable_apoyo_' + responsible);
-      return;
-    }
   } else {
     logToErrors(seccion, CONFIG.APOYO_RANGE, normCode, 'via_manual_apoyo_' + iso);
   }
 
   const codeLabel = normCode ? (CONFIG.LABELS[normCode] || normCode) : '';
-  const nota = motivo + (bypass ? (motivo ? ' | ' : '') + 'via_manual:Apoyo by ' + activeEmail : '');
+  const nota = motivo + (bypass ? (motivo ? ' | ' : '') + 'via_manual:Apoyo by unknown' : '');
   const srcA1 = CONFIG.APOYO_SHEET + '!A3:E3';
   const rid = recordId(seccion, operador, iso);
   const candidate = {

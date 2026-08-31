@@ -48,7 +48,7 @@ function logToErrors(section, rangeA1, code, reason) {
     let sh = ss.getSheetByName(CONFIG.ERRORS);
     if (!sh) sh = ensureErrorsSheet();
     const ts = Utilities.formatDate(new Date(), CONFIG.TIMEZONE, 'yyyy-MM-dd HH:mm:ss');
-    const user = Session.getActiveUser().getEmail() || 'unknown';
+    const user = 'unknown';
     sh.appendRow([ts, section || '', rangeA1 || '', code || '', reason || '', user]);
     SpreadsheetApp.flush();
   } catch (e) {
