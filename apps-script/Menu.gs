@@ -44,17 +44,17 @@ function menuReSincronizarFila() {
         return;
     }
     if (name === CONFIG.APOYO_SHEET) {
-        ss.toast("Usá Solicitar corrección para Apoyo.", "Asistencia", 5);
+        ss.toast("Usá Registro manual para Apoyo.", "Asistencia", 5);
         return;
     }
     const section = resolveSection(sh);
     if (!section) {
-        ss.toast("⚠️ Sección no mapeada en Config!A:B — sin escritura.", "Asistencia", 7);
+        ss.toast("⚠️ Hoja no válida para re-sincronizar.", "Asistencia", 7);
         logToErrors(
             name,
             sh.getActiveRange() ? sh.getActiveRange().getA1Notation() : "",
             "",
-            "section_unmapped_resync",
+            "section_unresolved_resync",
         );
         return;
     }
@@ -229,17 +229,7 @@ function menuAgregarEditarNota() {
     }
     const section = resolveSection(sh);
     if (!section) {
-        ss.toast(
-            "⚠️ Sección no mapeada en Config!A:B — sin escritura. Mapeá sheetId o nombre.",
-            "Asistencia",
-            7,
-        );
-        logToErrors(
-            name,
-            sh.getActiveRange() ? sh.getActiveRange().getA1Notation() : "",
-            "",
-            "section_unmapped_nota",
-        );
+        ss.toast("⚠️ Hoja no válida para nota.", "Asistencia", 5);
         return;
     }
     const activeRange = sh.getActiveRange();
@@ -526,23 +516,32 @@ function promptManualEntry(isRegistroManual) {
         return;
     }
 
+    // Scan attendance sheets dynamically (scalable — no hardcoded list).
+    const allSheets = ss.getSheets();
+    const attendanceNames = [];
+    for (let i = 0; i < allSheets.length; i++) {
+      if (isAttendanceSheet(allSheets[i])) attendanceNames.push(allSheets[i].getName());
+    }
+    const secPrompt = attendanceNames.length > 0
+      ? "Una de: " + attendanceNames.join(", ")
+      : "Nombre de la pestaña de asistencia";
     const secResp = ui.prompt(
-        "Sección lógica",
-        "Una de: " + CONFIG.LOGICAL_SECTIONS.join(", "),
-        ui.ButtonSet.OK_CANCEL,
+      "Sección lógica",
+      secPrompt,
+      ui.ButtonSet.OK_CANCEL,
     );
     if (secResp.getSelectedButton() !== ui.Button.OK) return;
     const section = secResp.getResponseText().trim();
     if (!section) {
-        ss.toast("Sección vacía — cancelado.", "Asistencia", 5);
-        return;
+      ss.toast("Sección vacía — cancelado.", "Asistencia", 5);
+      return;
     }
-    if (CONFIG.LOGICAL_SECTIONS.indexOf(section) === -1) {
-        const conf = ui.alert(
-            'Sección "' + section + '" no está en lista canónica. ¿Continuar?',
-            ui.ButtonSet.YES_NO,
-        );
-        if (conf !== ui.Button.YES) return;
+    if (attendanceNames.indexOf(section) === -1) {
+      const conf = ui.alert(
+        'Sección "' + section + '" no coincide con ninguna hoja de asistencia. ¿Continuar?',
+        ui.ButtonSet.YES_NO,
+      );
+      if (conf !== ui.Button.YES) return;
     }
 
     const codeResp = ui.prompt("Código", "A, AT, BM, F o vacío (void):", ui.ButtonSet.OK_CANCEL);
@@ -698,12 +697,8 @@ function handleCalendarChange(e) {
         }
         const section = resolveSection(sheet);
         if (!section) {
-            ss.toast(
-                "⚠️ Sección no mapeada en Config!A:B — sin escritura. Mapeá sheetId o nombre.",
-                "Asistencia",
-                7,
-            );
-            logToErrors(name, e.range.getA1Notation(), "", "section_unmapped_calendar");
+            ss.toast("⚠️ Hoja no válida para recarga.", "Asistencia", 7);
+            logToErrors(name, e.range.getA1Notation(), "", "section_unresolved_calendar");
             return;
         }
         const ym = getYearMonth(sheet);
@@ -919,7 +914,7 @@ function onEdit(e) {
             return;
         }
         const section = resolveSection(sheet);
-        if (!section) return;
+        if (!section) return; // resolveSection always returns sheet name for attendance sheets
         const r1 = Math.max(e.range.getRow(), CONFIG.INPUT_ROW_START);
         const r2 = Math.min(e.range.getRow() + e.range.getNumRows() - 1, CONFIG.INPUT_ROW_END);
         const c1 = Math.max(e.range.getColumn(), CONFIG.INPUT_COL_START);

@@ -1,8 +1,11 @@
 /**
  * Config.gs — Split from Code.gs (original ~1047 lines, 40 functions)
- * Role: Central CONFIG + HEADER + ERRORS_HEADER + LOGICAL_SECTIONS + TIMEZONE.
- * Original: Control de Asistencia — Registro Centralization (PR 3 Governance+Menu+Backfill).
+ * Role: Central CONFIG + HEADER + ERRORS_HEADER + TIMEZONE.
+ * Original: Control de Asistencia — Registro Centralization.
  * Notes: Apps Script concatenates all .gs files; order does not matter. Do not change logic.
+ * Attendance sheets = any non-ignorable sheet except Apoyo (detected via structure).
+ * Config!A:B optional alias (sheetId or name -> logical display name).
+ * Apoyo is fixed.
  */
 
 /**

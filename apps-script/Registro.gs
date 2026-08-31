@@ -129,9 +129,9 @@ function resolveSection(sheet) {
   if (map[idStr]) return map[idStr];
   const name = String(sheet.getName()).trim();
   if (map[name]) return map[name];
-  // Fallback: if name itself is a canonical logical section, resolve directly
-  if (CONFIG.LOGICAL_SECTIONS.indexOf(name) !== -1) return name;
-  return null;
+  // Fallback: any attendance sheet uses its current name as section.
+  // Config!A:B is optional alias; if absent, the sheet name itself is the section.
+  return name;
 }
 
 function getResponsibleEmail(section) {

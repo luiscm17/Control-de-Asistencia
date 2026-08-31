@@ -119,3 +119,13 @@ function isIgnorableSheet(sheetName) {
   const ignorable = [CONFIG.REGISTRO, CONFIG.CONFIG_SHEET, CONFIG.ERRORS, 'Hoja2', '- AYUDA -'];
   return ignorable.indexOf(sheetName) !== -1;
 }
+
+/**
+ * Attendance sheet = any sheet that is not ignorable and not Apoyo.
+ * Scalable: adding or renaming sheets needs no code change.
+ * Config!A:B is an optional alias; if absent, the sheet's current name is used.
+ */
+function isAttendanceSheet(sheet) {
+  const name = String(sheet.getName()).trim();
+  return !isIgnorableSheet(name) && name !== CONFIG.APOYO_SHEET;
+}

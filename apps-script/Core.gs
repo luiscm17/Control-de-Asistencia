@@ -35,9 +35,11 @@ function handleEdit(e) {
     if (!rangeIntersectsInput(e.range)) return;
 
     const section = resolveSection(sheet);
+    // resolveSection always returns the sheet name as fallback for attendance sheets.
+    // If somehow null (should not happen for attendance), warn and skip.
     if (!section) {
-      ss.toast('⚠️ Sección no mapeada en Config!A:B — sin escritura. Mapeá sheetId o nombre.', 'Asistencia', 7);
-      logToErrors(sheetName, e.range.getA1Notation(), '', 'section_unmapped');
+      ss.toast('⚠️ Sección no resuelta — sin escritura.', 'Asistencia', 7);
+      logToErrors(sheetName, e.range.getA1Notation(), '', 'section_unresolved');
       return;
     }
 
@@ -161,7 +163,8 @@ function doBackfill(bypassWindow) {
     const name = sh.getName();
     if (isIgnorableSheet(name) || name === CONFIG.APOYO_SHEET) continue;
     const section = resolveSection(sh);
-    if (!section) continue; // unmapped → skip silently (warn in Errors)
+    // resolveSection always returns the sheet name as fallback for attendance sheets.
+    if (!section) { logToErrors(name, '', '', 'section_unresolved'); continue; }
     sheetsScanned++;
 
     // Batch reads: E11 row, operator names C15:C44, input zone E15:AI44
