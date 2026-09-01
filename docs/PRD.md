@@ -2,10 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.3.5 |
+| **Version** | 0.3.6 |
 | **Author** | [Placeholder — assign owner] |
 | **Date** | 2026-08-31 |
-| **Status** | Draft - scalable attendance sheets |
+| **Status** | Draft - Registro headers ES |
 | **Source** | Google Sheet `1GrZ_9w3CPvsJ22nVCndFojkhrhGmFGY8XcLQrtW7jTs` (native, converted 2026-08-31 from `1iw9bduLeGXQMbjmMV1qrMqE2WoPWCBz3` xlsx; gid `740536758` = Preparacion) |
 | **Repo** | `/home/luis-cm/Documents/Github/Control-de-Asistencia` |
 | **Evidence** | `docs/playwright-evidence/Preparacion-analysis.md` (playwright-cli 0.1.18) |
@@ -178,19 +178,19 @@ N Attendance Sheets (E15:AI44 + S7:U7/S9:U9/V9, detected via structure) ──on
 
 | # | Col | Type | Example | Description |
 |---|-----|------|---------|-------------|
-| A | `record_id` | STRING | `PREP-001-2026-03-15` | PK `section-operator_name-date` |
-| B | `created_at` | DATETIME | `2026-08-30 14:22:05` | First insert (Lima) |
-| C | `updated_at` | DATETIME | `2026-08-30 15:00:12` | Last update |
-| D | `section` | STRING | `Preparacion` | Attendance sheet resolved as `Config!A:B` alias (`sheetId`/name → display name) if present, else sheet's current name (scalable, not hardcoded enum); `Apoyo`→`D=Apoyo!C3:C1000` (Sección Destino) |
-| E | `operator_name` | STRING | `Juan Pérez` | Col B or `Apoyo!B3:B1000` (Operador) |
-| F | `date` | DATE | `2026-03-15` | ISO from `E11:AI11` (attendance, window-gated) or `Apoyo!A3:A1000` Fecha as stored (any date, no window) |
-| G | `code` | ENUM | `F` | `A/AT/BM/F`; for `is_apoyo=TRUE` → `""` (no code) |
-| H | `code_label` | STRING | `Falta` | Via mapping; for `is_apoyo=TRUE` → `""` |
-| I | `is_apoyo` | BOOLEAN | `FALSE` | `TRUE` if from `Apoyo` growing table `A3:E1000` (no window/code, `code=""`) |
-| J | `edited_by` | STRING | `resp.prep@factory.pe` | Email or `unknown` |
-| K | `source_range` | STRING | `Preparacion!G22` | A1 traceability |
-| L | `nota` | STRING | `apoyo en conera 4` / `""` | Optional per-cell nota for **any** attendance code (`A/AT/BM/F`), empty (`""`) default; no history — overwrites. Set via menu `Agregar/editar nota a celda activa` → `Registro!L` + `setNote()`. For `is_apoyo=TRUE` rows `L=Motivo` (`Apoyo!D3:D1000`, trimmed, may be empty); Horas col unused; nota flow does not apply to Apoyo (no code/nota modal). |
-| M | `status` | ENUM | `active` | `active`/`void` |
+| A | `id` | STRING | `PREP-001-2026-03-15` | PK `seccion-operador-fecha` |
+| B | `creado` | DATETIME | `2026-08-30 14:22:05` | First insert (Lima) |
+| C | `actualizado` | DATETIME | `2026-08-30 15:00:12` | Last update |
+| D | `seccion` | STRING | `Preparacion` | Attendance sheet resolved as `Config!A:B` alias (`sheetId`/name → display name) if present, else sheet's current name (scalable, not hardcoded enum); `Apoyo`→`D=Apoyo!C3:C1000` (Sección Destino) |
+| E | `operador` | STRING | `Juan Pérez` | Col B or `Apoyo!B3:B1000` (Operador) |
+| F | `fecha` | DATE | `2026-03-15` | ISO from `E11:AI11` (attendance, window-gated) or `Apoyo!A3:A1000` Fecha as stored (any date, no window) |
+| G | `codigo` | ENUM | `F` | `A/AT/BM/F`; for `es_apoyo=TRUE` → `""` (no code) |
+| H | `descripcion` | STRING | `Falta` | Via mapping; for `es_apoyo=TRUE` → `""` |
+| I | `es_apoyo` | BOOLEAN | `FALSE` | `TRUE` if from `Apoyo` growing table `A3:E1000` (no window/code, `codigo=""`) |
+| J | `editado_por` | STRING | `resp.prep@factory.pe` | Email or `unknown` |
+| K | `rango_origen` | STRING | `Preparacion!G22` | A1 traceability |
+| L | `nota` | STRING | `apoyo en conera 4` / `""` | Optional per-cell nota for **any** attendance code (`A/AT/BM/F`), empty (`""`) default; no history — overwrites. Set via menu `Agregar/editar nota a celda activa` → `Registro!L` + `setNote()`. For `es_apoyo=TRUE` rows `L=Motivo` (`Apoyo!D3:D1000`, trimmed, may be empty); Horas col unused; nota flow does not apply to Apoyo (no code/nota modal). |
+| M | `estado` | ENUM | `active` | `active`/`void` |
 
 > `weekday`/`month`/`year` not stored — derive from `F`.
 
@@ -459,4 +459,4 @@ User edits S7:U7 (year) or S9:U9 (month) on a section sheet
 
 Playwright evidence: see `docs/playwright-evidence/Preparacion-analysis.md` and live captures `live-*.png`. No repro tutorial in PRD.
 
-*End of PRD v0.3.5 — Scalable attendance sheets: N attendance sheets detected via structure (E15:AI44 + S7:U7/S9:U9 + Hoja2 / C13), ignorable list Registro/Config/Errors/Hoja2/- AYUDA -/Apoyo excluded; section = Config!A:B alias (sheetId/name → display) ?? sheetName; Apoyo stays fixed; adding/renaming sheets needs no code change (EC-15). FR-001/FR-006/FR-009/FR-013 updated for scalable detection; §4/§5.1/§9/§10/EC-07/EC-09 reflect optional alias. Previous v0.3.4 month/year confirm+reload (FR-006/EC-14/§11.8) preserved.*
+*End of PRD v0.3.6 — Registro headers ES: A:M `id|creado|actualizado|seccion|operador|fecha|codigo|descripcion|es_apoyo|editado_por|rango_origen|nota|estado` (Spanish, snake, no accents) for pivot tables; order frozen, code indexes unchanged. Previous v0.3.5 scalable sheets preserved.*

@@ -37,8 +37,8 @@ const CONFIG = {
   CODES: ['A', 'AT', 'BM', 'F'],
   LABELS: { A: 'Asistencia', AT: 'Tardanza', BM: 'Baja Médica', F: 'Falta' },
   HEADER: [
-    'record_id', 'created_at', 'updated_at', 'section', 'operator_name',
-    'date', 'code', 'code_label', 'is_apoyo', 'edited_by', 'source_range', 'nota', 'status'
+    'id', 'creado', 'actualizado', 'seccion', 'operador',
+    'fecha', 'codigo', 'descripcion', 'es_apoyo', 'editado_por', 'rango_origen', 'nota', 'estado'
   ],
   ERRORS_HEADER: ['timestamp', 'section', 'range', 'code', 'reason', 'user'],
   CONFIG_HEADER: ['key', 'value'],

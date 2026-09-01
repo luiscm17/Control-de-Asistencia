@@ -5,6 +5,18 @@
  * Notes: Apps Script concatenates all .gs files; order does not matter. Do not change logic.
  */
 
+function getEditorEmail() {
+  try {
+    const a = Session.getActiveUser().getEmail();
+    if (a) return a;
+  } catch (e) {}
+  try {
+    const eff = Session.getEffectiveUser().getEmail();
+    if (eff) return eff;
+  } catch (e) {}
+  return 'unknown';
+}
+
 function isInWindow(isoDate) {
   const today = Utilities.formatDate(new Date(), CONFIG.TIMEZONE, 'yyyy-MM-dd');
   const yesterday = Utilities.formatDate(new Date(Date.now() - 864e5), CONFIG.TIMEZONE, 'yyyy-MM-dd');
@@ -48,7 +60,7 @@ function logToErrors(section, rangeA1, code, reason) {
     let sh = ss.getSheetByName(CONFIG.ERRORS);
     if (!sh) sh = ensureErrorsSheet();
     const ts = Utilities.formatDate(new Date(), CONFIG.TIMEZONE, 'yyyy-MM-dd HH:mm:ss');
-    const user = 'unknown';
+    const user = getEditorEmail();
     sh.appendRow([ts, section || '', rangeA1 || '', code || '', reason || '', user]);
     SpreadsheetApp.flush();
   } catch (e) {

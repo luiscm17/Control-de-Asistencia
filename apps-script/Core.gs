@@ -262,7 +262,7 @@ function commitRegistroBatch(candidates) {
     }
 
     const nowStr = Utilities.formatDate(new Date(), CONFIG.TIMEZONE, 'yyyy-MM-dd HH:mm:ss');
-    const editedBy = 'unknown';
+    const editedBy = getEditorEmail();
     let ins = 0;
     let upd = 0;
     let voided = 0;
