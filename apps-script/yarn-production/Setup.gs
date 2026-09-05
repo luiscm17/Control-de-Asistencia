@@ -16,6 +16,8 @@ function setupYarnProduction() {
   applyYarnValidations_();
   installTotalFormulas_();
   protectYarnFixedRanges_();
+  configureYarnMobileSaveControl_();
+  reconcileYarnMobileSaveTrigger_();
   ensureDashboardSheet_();
   SpreadsheetApp.flush();
   ss.toast('✅ Produccion y dashboard configurados.', 'Produccion', 7);
@@ -123,6 +125,59 @@ function applyYarnValidations_() {
     processRange.setNumberFormat('0.00');
   } catch (e) {
     Logger.log('applyYarnValidations_ number format: ' + e.message);
+  }
+}
+
+// --- NATIVE MOBILE SAVE CONTROL ---
+function configureYarnMobileSaveControl_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = ss.getSheetByName(YARN_CONFIG.FORM_SHEET);
+  if (!sh) return;
+
+  const checkbox = sh.getRange(YARN_CONFIG.MOBILE_SAVE_CELL_A1);
+  const label = sh.getRange(YARN_CONFIG.MOBILE_SAVE_LABEL_CELL_A1);
+  const checkboxRule = SpreadsheetApp.newDataValidation()
+    .requireCheckbox()
+    .setAllowInvalid(false)
+    .setHelpText('Marque para guardar los turnos cargados.')
+    .build();
+
+  checkbox.setDataValidation(checkboxRule);
+  if (checkbox.getValue() !== true) checkbox.setValue(false);
+  checkbox.setHorizontalAlignment('center')
+    .setVerticalAlignment('middle')
+    .setBackground('#e8f0fe')
+    .setBorder(true, true, true, true, true, true, '#1a73e8', SpreadsheetApp.BorderStyle.SOLID);
+
+  if (String(label.getDisplayValue() || '').trim() === '') label.setValue('Guardar');
+  label.setFontWeight('bold')
+    .setFontSize(10)
+    .setVerticalAlignment('middle')
+    .setFontColor('#174ea6');
+  if (sh.getRowHeight(YARN_CONFIG.MOBILE_SAVE_ROW) < YARN_CONFIG.MOBILE_SAVE_MIN_ROW_HEIGHT_PX) {
+    sh.setRowHeight(YARN_CONFIG.MOBILE_SAVE_ROW, YARN_CONFIG.MOBILE_SAVE_MIN_ROW_HEIGHT_PX);
+  }
+}
+
+function reconcileYarnMobileSaveTrigger_() {
+  const handler = YARN_CONFIG.MOBILE_SAVE_TRIGGER_HANDLER;
+  const triggers = ScriptApp.getProjectTriggers();
+  let retained = false;
+  for (let i = 0; i < triggers.length; i++) {
+    const trigger = triggers[i];
+    if (trigger.getHandlerFunction() !== handler) continue;
+    const isEditTrigger = trigger.getEventType() === ScriptApp.EventType.ON_EDIT;
+    if (!retained && isEditTrigger) {
+      retained = true;
+      continue;
+    }
+    ScriptApp.deleteTrigger(trigger);
+  }
+  if (!retained) {
+    ScriptApp.newTrigger(handler)
+      .forSpreadsheet(SpreadsheetApp.getActive())
+      .onEdit()
+      .create();
   }
 }
 

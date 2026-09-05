@@ -20,6 +20,15 @@ const YARN_CONFIG = {
   DATE_ROW: 2,
   DATE_COL: 7, // G
 
+  // Native mobile save control. Keep the existing drawing untouched.
+  MOBILE_SAVE_CELL_A1: 'M4',
+  MOBILE_SAVE_LABEL_CELL_A1: 'N4',
+  MOBILE_SAVE_ROW: 4,
+  MOBILE_SAVE_COL: 13, // M
+  MOBILE_SAVE_MIN_ROW_HEIGHT_PX: 24,
+  MOBILE_SAVE_TRIGGER_HANDLER: 'yarnMobileOnEdit',
+  MOBILE_SAVE_DEBOUNCE_MS: 3000,
+
   // C6:L8 includes fixed TURNO (C) + 9 process columns (D:L)
   SHIFT_COL: 3, // C
   PROCESS_COL_START: 4, // D

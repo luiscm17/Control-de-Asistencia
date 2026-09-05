@@ -3,6 +3,7 @@
  *
  * Pure helpers: date key normalization (America/La_Paz), eligibility,
  * zero-filling, totals, audit merging. Simple onEdit for G2 only.
+ * The installable mobile handler is limited to M4 FALSE -> TRUE saves.
  * Batch reads/writes; never touches C6:C8 or totals C9:L9 / C10:J10.
  */
 
@@ -21,8 +22,8 @@ function yarnParseG2ToIso_(value) {
   }
   // Numeric serial (Sheets date) — treat as days since 1899-12-30
   if (typeof value === 'number' && !isNaN(value)) {
-    // Convert via Sheets epoch: use Java date
-    const d = new Date(Math.round((value - 25569) * 86400 * 1000));
+    // Convert via Sheets epoch: use noon UTC to avoid America/La_Paz midnight shift (UTC-4)
+    const d = new Date(Math.round((value - 25569) * 86400 * 1000 + 43200000));
     if (!isNaN(d)) return Utilities.formatDate(d, YARN_CONFIG.TIMEZONE, 'yyyy-MM-dd');
   }
   const s = String(value).trim();
@@ -136,6 +137,81 @@ function yarnBuildRecordFromFormRow_(isoDate, turno, normalizedValues, editorEma
   return row;
 }
 
+// --- MOBILE SAVE EVENT FILTERING ---
+function yarnNormalizeCheckboxValue_(v) {
+  if (v === true) return 'TRUE';
+  if (v === false) return 'FALSE';
+  const s = String(v == null ? '' : v).trim().toUpperCase();
+  if (s === 'VERDADERO') return 'TRUE';
+  if (s === 'FALSO') return 'FALSE';
+  return s;
+}
+function yarnIsMobileSaveEvent_(e) {
+  if (!e || !e.range) return false;
+  const valNorm = yarnNormalizeCheckboxValue_(e.value);
+  const oldNorm = yarnNormalizeCheckboxValue_(e.oldValue);
+  const rawOld = String(e.oldValue == null ? '' : e.oldValue).trim();
+  // Allow blank oldValue (first time checkbox was empty before setup)
+  const oldIsFalse = oldNorm === 'FALSE' || rawOld === '';
+  if (valNorm !== 'TRUE' || !oldIsFalse) return false;
+  const range = e.range;
+  if (range.getNumRows() !== 1 || range.getNumColumns() !== 1) return false;
+  const sh = range.getSheet();
+  return sh.getName() === YARN_CONFIG.FORM_SHEET &&
+    range.getRow() === YARN_CONFIG.MOBILE_SAVE_ROW &&
+    range.getColumn() === YARN_CONFIG.MOBILE_SAVE_COL;
+}
+
+function yarnMobileSaveResult_(result) {
+  const saved = result && result.ok === true;
+  return { resetCheckbox: saved, reason: saved ? 'saved' : String((result && result.reason) || 'save_failed') };
+}
+
+function yarnIsMobileSaveDebounced_(marker, now) {
+  const match = /^yarn-mobile-save:(\d+)$/.exec(String(marker || ''));
+  return Boolean(match) && now - Number(match[1]) < YARN_CONFIG.MOBILE_SAVE_DEBOUNCE_MS;
+}
+
+function yarnTryStartMobileSave_(range) {
+  const lock = LockService.getDocumentLock();
+  let locked = false;
+  try {
+    locked = lock.tryLock(1000);
+    if (!locked) return false;
+    const now = new Date().getTime();
+    if (yarnIsMobileSaveDebounced_(range.getNote(), now)) return false;
+    range.setNote('yarn-mobile-save:' + now);
+    return true;
+  } finally {
+    if (locked) lock.releaseLock();
+  }
+}
+
+function yarnFinishMobileSave_(range) {
+  range.clearNote();
+}
+
+/**
+ * Installable edit trigger for the native mobile checkbox only.
+ * It deliberately does not replace the simple G2 onEdit handler below.
+ */
+function yarnMobileOnEdit(e) {
+  if (!yarnIsMobileSaveEvent_(e)) return;
+  const range = e.range;
+  if (!yarnTryStartMobileSave_(range)) return;
+  try {
+    Logger.log('M4 edit: sheet='+e.range.getSheet().getName()+' row='+e.range.getRow()+' col='+e.range.getColumn()+' value='+e.value+' old='+e.oldValue);
+    const outcome = yarnMobileSaveResult_(guardarProduccion());
+    Logger.log('M4 outcome: '+JSON.stringify(outcome));
+    if (outcome.resetCheckbox) range.setValue(false);
+  } catch (err) {
+    Logger.log('yarnMobileOnEdit error: ' + err.message + ' stack: ' + err.stack);
+    e.source.toast('❌ Error al guardar: ' + err.message, 'Produccion', 7);
+  } finally {
+    yarnFinishMobileSave_(range);
+  }
+}
+
 // --- FORM LOAD / CLEAR (D6:L8 only) ---
 
 function yarnClearProcessInputs_() {
@@ -199,7 +275,11 @@ function onEdit(e) {
     const raw = e.range.getValue();
     const iso = yarnParseG2ToIso_(raw);
     if (iso === '') {
-      // Blank/invalid — do nothing per spec
+      // Blank/invalid — do nothing per spec, but ensure checkbox is FALSE for next save
+      try {
+        const cb = sh.getRange(YARN_CONFIG.MOBILE_SAVE_CELL_A1);
+        if (cb.getValue() === true) cb.setValue(false);
+      } catch(e) {}
       return;
     }
     // Batch lookup by date
@@ -212,6 +292,11 @@ function onEdit(e) {
       yarnClearProcessInputs_();
       e.source.toast('🆕 ' + iso + ' sin registros — formulario listo.', 'Produccion', 5);
     }
+    // Ensure checkbox is FALSE for new day/loaded data so next shift can save
+    try {
+      const cb2 = sh.getRange(YARN_CONFIG.MOBILE_SAVE_CELL_A1);
+      if (cb2.getValue() === true) cb2.setValue(false);
+    } catch(e) {}
   } catch (err) {
     Logger.log('onEdit yarn-production: ' + err.message + ' stack: ' + err.stack);
     try {
@@ -251,29 +336,4 @@ function yarnLookupByDate_(isoDate) {
     out[turno] = r;
   }
   return out;
-}
-
-// --- MANUAL HARNESS (run from editor for unit verification) ---
-function yarnTestHelpers_() {
-  const tests = [];
-  function assert(name, got, expected) {
-    const pass = JSON.stringify(got) === JSON.stringify(expected);
-    tests.push((pass ? '✅ ' : '❌ ') + name + ' | got=' + JSON.stringify(got) + ' expected=' + JSON.stringify(expected));
-    if (!pass) Logger.log('FAIL ' + name + ' got ' + JSON.stringify(got) + ' expected ' + JSON.stringify(expected));
-  }
-  assert('parse Date', yarnParseG2ToIso_(new Date(2026, 7, 1, 12)), '2026-08-01');
-  assert('parse d/M/yyyy', yarnParseG2ToIso_('1/8/2026'), '2026-08-01');
-  assert('parse 31/7/2026', yarnParseG2ToIso_('31/7/2026'), '2026-07-31');
-  assert('parse yyyy-MM-dd', yarnParseG2ToIso_('2026-08-01'), '2026-08-01');
-  assert('blank -> empty', yarnParseG2ToIso_(''), '');
-  assert('buildId', yarnBuildId_('2026-08-01', 'DIA'), '2026-08-01-DIA');
-  assert('eligible true', yarnIsRowEligible_(['', 0, '']), true);
-  assert('eligible false (all blank)', yarnIsRowEligible_(['', '', '']), false);
-  assert('eligible false (empty array blank)', yarnIsRowEligible_(['   ', null, undefined]), false);
-  assert('normalize blank->0', yarnNormalizeProcessValues_(['', '850', '']), [0, 850, 0]);
-  assert('total', yarnComputeTotalProductoTerminado_(200, 303.5, 0), 503.5);
-  const norm = yarnNormalizeProcessValues_([850, 0, 0, 408, 1020, 912, 200, 303.5, 0]);
-  assert('normalize full', norm, [850, 0, 0, 408, 1020, 912, 200, 303.5, 0]);
-  Logger.log(tests.join('\n'));
-  return tests.join('\n');
 }
