@@ -118,6 +118,7 @@ const DASHBOARD_CARD_RANGE = {
   madejitas: 'L',
   total_producto_terminado: 'M'
 };
-const DASHBOARD_CHART_ANCHORS = { SECTION: 'G1', CUMULATIVE: 'G2', SHIFT: 'G3' };
+const DASHBOARD_CHART_ANCHORS = { SECTION: 'G1', CUMULATIVE: 'G18', SHIFT: 'G35' };
 const DASHBOARD_FORMAT = '#,##0.00';
-const DASHBOARD_FILTER_RANGES = { START_DATE: 'B1', END_DATE: 'C1', SHIFT: 'E1', FOCUS: 'F1' };
+const DASHBOARD_FILTER_RANGES = { SHIFT: 'B1', FOCUS: 'D1', PERIOD: 'F1' };
+const DASHBOARD_PERIOD_OPTIONS = ['Mes actual', 'Últimos 7 días', 'Histórico'];

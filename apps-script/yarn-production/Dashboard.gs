@@ -14,9 +14,10 @@ function ensureDashboardSheet_() {
 
     sh.setFrozenRows(1);
     sh.setRowHeight(1, 28);
-    sh.getRange("A1:F1").setValues([["Fecha desde", "", "", "Turno", "Todos", "Todas"]]);
+    sh.getRange("A1:F1").setValues([["Turno", "", "Sección", "", "Período", ""]]);
     sh.getRange("A1").setFontWeight("bold");
-    sh.getRange("D1").setFontWeight("bold");
+    sh.getRange("C1").setFontWeight("bold");
+    sh.getRange("E1").setFontWeight("bold");
     applyDashboardValidations_(sh);
     buildDashboardCardFormulas_(sh);
     buildAuxiliaryQuery_(sh);
@@ -26,18 +27,6 @@ function ensureDashboardSheet_() {
 }
 
 function applyDashboardValidations_(sh) {
-    const dateRule = SpreadsheetApp.newDataValidation()
-        .requireDate()
-        .setAllowInvalid(true)
-        .setHelpText("Optional date in d/M/yyyy.")
-        .build();
-    sh.getRange(DASHBOARD_FILTER_RANGES.START_DATE)
-        .setDataValidation(dateRule)
-        .setNumberFormat("d/M/yyyy");
-    sh.getRange(DASHBOARD_FILTER_RANGES.END_DATE)
-        .setDataValidation(dateRule)
-        .setNumberFormat("d/M/yyyy");
-
     const shiftRule = SpreadsheetApp.newDataValidation()
         .requireValueInList(["Todos"].concat(YARN_CONFIG.SHIFTS), true)
         .setAllowInvalid(false)
@@ -46,8 +35,13 @@ function applyDashboardValidations_(sh) {
         .requireValueInList(["Todas"].concat(YARN_CONFIG.PROCESS_FIELDS), true)
         .setAllowInvalid(false)
         .build();
+    const periodRule = SpreadsheetApp.newDataValidation()
+        .requireValueInList(DASHBOARD_PERIOD_OPTIONS, true)
+        .setAllowInvalid(false)
+        .build();
     sh.getRange(DASHBOARD_FILTER_RANGES.SHIFT).setDataValidation(shiftRule);
     sh.getRange(DASHBOARD_FILTER_RANGES.FOCUS).setDataValidation(focusRule);
+    sh.getRange(DASHBOARD_FILTER_RANGES.PERIOD).setDataValidation(periodRule);
 }
 
 function buildDashboardCardFormulas_(sh) {
@@ -63,9 +57,8 @@ function buildDashboardCardFormulas_(sh) {
             "$2:$" +
             column +
             ',datos_produccion!$A$2:$A<>""' +
-            ',IF($B$1="",ROW(datos_produccion!$B$2:$B)>0,datos_produccion!$B$2:$B>=$B$1)' +
-            ',IF($C$1="",ROW(datos_produccion!$B$2:$B)>0,datos_produccion!$B$2:$B<=$C$1)' +
-            ',IF(OR($E$1="",$E$1="Todos"),ROW(datos_produccion!$C$2:$C)>0,datos_produccion!$C$2:$C=$E$1))),0)'
+            ',IF($F$1="Histórico",ROW(datos_produccion!$B$2:$B)>0,IF($F$1="Mes actual",(MONTH(datos_produccion!$B$2:$B)=MONTH(TODAY()))*(YEAR(datos_produccion!$B$2:$B)=YEAR(TODAY())),IF($F$1="Últimos 7 días",datos_produccion!$B$2:$B>=TODAY()-7,ROW(datos_produccion!$B$2:$B)>0)))' +
+            ',IF(OR($B$1="",$B$1="Todos"),ROW(datos_produccion!$C$2:$C)>0,datos_produccion!$C$2:$C=$B$1))),0)'
         );
     });
 
@@ -82,8 +75,8 @@ function buildAuxiliaryQuery_(sh) {
     sh.getRange("A11").setFormula(
         "=IFERROR(QUERY(datos_produccion!A:Q," +
             '"select B,sum(M) where B is not null"' +
-            '&IF(OR($E$1="Todos",$E$1=""),""," and C=\'"&$E$1&"\'")' +
-            '&IF(AND($B$1="",$C$1=""),"",IF(AND($B$1<>"",$C$1<>"")," and B>=date \'"&TEXT($B$1,"yyyy-mm-dd")&"\' and B<=date \'"&TEXT($C$1,"yyyy-mm-dd")&"\'",IF($B$1<>""," and B>=date \'"&TEXT($B$1,"yyyy-mm-dd")&"\'"," and B<=date \'"&TEXT($C$1,"yyyy-mm-dd")&"\'")))' +
+            '&IF(OR($B$1="Todos",$B$1=""),""," and C=\'"&$B$1&"\'")' +
+            '&IF($F$1="Histórico","","IF($F$1="Mes actual"," and B>=date \'"&TEXT(EOMONTH(TODAY(),-1)+1,"yyyy-mm-dd")&"\' and B<=date \'"&TEXT(EOMONTH(TODAY(),0),"yyyy-mm-dd")&"\'",IF($F$1="Últimos 7 días"," and B>=date \'"&TEXT(TODAY()-7,"yyyy-mm-dd")&"\'","")))' +
             '&" group by B order by B asc limit ' +
             DASHBOARD_AUX_MAX_ROWS +
             ' label B \'\',sum(M) \'\'",0),"")',
@@ -105,12 +98,12 @@ function buildDashboardShiftChartData_(sh) {
     for (let index = 0; index < shifts.length; index++) {
         const shift = shifts[index];
         const formula =
-            '=ARRAYFORMULA(IF(N11:N200="","",IF(OR($E$1="Todos",$E$1="", $E$1="' +
+            '=ARRAYFORMULA(IF(N11:N200="","",IF(OR($B$1="Todos",$B$1="", $B$1="' +
             shift +
             '"),IFERROR(VLOOKUP(N11:N200,QUERY(datos_produccion!A:Q,' +
             '"select B,sum(M) where B is not null and C=\'' +
             shift +
-            '\'&IF(AND($B$1="",$C$1=""),"",IF(AND($B$1<>"",$C$1<>"")," and B>=date \'"&TEXT($B$1,"yyyy-mm-dd")&"\' and B<=date \'"&TEXT($C$1,"yyyy-mm-dd")&"\'",IF($B$1<>""," and B>=date \'"&TEXT($B$1,"yyyy-mm-dd")&"\'"," and B<=date \'"&TEXT($C$1,"yyyy-mm-dd")&"\'")))&" group by B label B \'\',sum(M) \'\'",0),2,FALSE),0),0)))';
+            '\'"&IF($F$1="Histórico","","IF($F$1="Mes actual"," and B>=date \'"&TEXT(EOMONTH(TODAY(),-1)+1,"yyyy-mm-dd")&"\' and B<=date \'"&TEXT(EOMONTH(TODAY(),0),"yyyy-mm-dd")&"\'",IF($F$1="Últimos 7 días"," and B>=date \'"&TEXT(TODAY()-7,"yyyy-mm-dd")&"\'","")))&" group by B label B \'\',sum(M) \'\'",0),2,FALSE),0),0)))';
         sh.getRange(11, 15 + index)
             .setFormula(formula)
             .setNumberFormat(DASHBOARD_FORMAT);
@@ -126,7 +119,7 @@ function applyDashboardFocusFormat_(sh) {
     });
     rules.push(
         SpreadsheetApp.newConditionalFormatRule()
-            .whenFormulaSatisfied('=AND($F$1=D$3,$F$1<>"Todas")')
+            .whenFormulaSatisfied('=AND($D$1=D$3,$D$1<>"Todas")')
             .setBackground("#fff2cc")
             .setRanges([cardRange])
             .build(),
