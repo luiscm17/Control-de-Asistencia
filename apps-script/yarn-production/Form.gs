@@ -22,8 +22,8 @@ function yarnParseG2ToIso_(value) {
   }
   // Numeric serial (Sheets date) — treat as days since 1899-12-30
   if (typeof value === 'number' && !isNaN(value)) {
-    // Convert via Sheets epoch: use Java date
-    const d = new Date(Math.round((value - 25569) * 86400 * 1000));
+    // Convert via Sheets epoch: use noon UTC to avoid America/La_Paz midnight shift (UTC-4)
+    const d = new Date(Math.round((value - 25569) * 86400 * 1000 + 43200000));
     if (!isNaN(d)) return Utilities.formatDate(d, YARN_CONFIG.TIMEZONE, 'yyyy-MM-dd');
   }
   const s = String(value).trim();
@@ -138,8 +138,22 @@ function yarnBuildRecordFromFormRow_(isoDate, turno, normalizedValues, editorEma
 }
 
 // --- MOBILE SAVE EVENT FILTERING ---
+function yarnNormalizeCheckboxValue_(v) {
+  if (v === true) return 'TRUE';
+  if (v === false) return 'FALSE';
+  const s = String(v == null ? '' : v).trim().toUpperCase();
+  if (s === 'VERDADERO') return 'TRUE';
+  if (s === 'FALSO') return 'FALSE';
+  return s;
+}
 function yarnIsMobileSaveEvent_(e) {
-  if (!e || !e.range || e.value !== 'TRUE' || e.oldValue !== 'FALSE') return false;
+  if (!e || !e.range) return false;
+  const valNorm = yarnNormalizeCheckboxValue_(e.value);
+  const oldNorm = yarnNormalizeCheckboxValue_(e.oldValue);
+  const rawOld = String(e.oldValue == null ? '' : e.oldValue).trim();
+  // Allow blank oldValue (first time checkbox was empty before setup)
+  const oldIsFalse = oldNorm === 'FALSE' || rawOld === '';
+  if (valNorm !== 'TRUE' || !oldIsFalse) return false;
   const range = e.range;
   if (range.getNumRows() !== 1 || range.getNumColumns() !== 1) return false;
   const sh = range.getSheet();
@@ -182,25 +196,52 @@ function yarnFinishMobileSave_(range) {
  * It deliberately does not replace the simple G2 onEdit handler below.
  */
 function yarnMobileOnEdit(e) {
-  if (!yarnIsMobileSaveEvent_(e)) return;
+  if (!e || !e.range) return;
   const range = e.range;
-  if (!yarnTryStartMobileSave_(range)) return;
+  // Fast M4 cell guard so any stray TRUE always gets reset and next shift can save
+  try {
+    if (range.getNumRows() !== 1 || range.getNumColumns() !== 1) return;
+    const sh = range.getSheet();
+    if (sh.getName() !== YARN_CONFIG.FORM_SHEET ||
+      range.getRow() !== YARN_CONFIG.MOBILE_SAVE_ROW ||
+      range.getColumn() !== YARN_CONFIG.MOBILE_SAVE_COL) return;
+  } catch (err) { return; }
+  if (!yarnIsMobileSaveEvent_(e)) {
+    // Non save transition (e.g. TRUE->FALSE uncheck) - if cell stuck TRUE, force FALSE
+    try {
+      const cur = range.getValue();
+      if (yarnNormalizeCheckboxValue_(cur) === 'TRUE') {
+        range.setValue(false);
+        try { range.clearNote(); } catch (e2) {}
+      }
+    } catch (e2) {}
+    return;
+  }
+  if (!yarnTryStartMobileSave_(range)) {
+    // Debounced or lock contention - still reset so next shift can retry
+    try { range.setValue(false); } catch (e2) {
+      try { SpreadsheetApp.getActiveSpreadsheet().getSheetByName(YARN_CONFIG.FORM_SHEET).getRange(YARN_CONFIG.MOBILE_SAVE_CELL_A1).setValue(false); } catch (e3) {}
+    }
+    try { yarnFinishMobileSave_(range); } catch (e2) {}
+    return;
+  }
   try {
     Logger.log('M4 edit: sheet='+e.range.getSheet().getName()+' row='+e.range.getRow()+' col='+e.range.getColumn()+' value='+e.value+' old='+e.oldValue);
     const outcome = yarnMobileSaveResult_(guardarProduccion());
     Logger.log('M4 outcome: '+JSON.stringify(outcome));
-    // Always reset to FALSE so next shift (any day) can save - checkbox replaces button and must be unchecked
-    range.setValue(false);
     if (!outcome.resetCheckbox) {
-      // Was a failure - toast already shown by guardarProduccion, keep a retry hint
-      e.source.toast('⚠️ Revisá los datos e intentá de nuevo.', 'Produccion', 5);
+      const ss = (e && e.source) ? e.source : SpreadsheetApp.getActiveSpreadsheet();
+      try { ss.toast('⚠️ Revisá los datos e intentá de nuevo.', 'Produccion', 5); } catch (e2) {}
     }
   } catch (err) {
     Logger.log('yarnMobileOnEdit error: ' + err.message + ' stack: ' + err.stack);
-    e.source.toast('❌ Error al guardar: ' + err.message, 'Produccion', 7);
-    try { range.setValue(false); } catch(e2) {}
+    const ss = (e && e.source) ? e.source : SpreadsheetApp.getActiveSpreadsheet();
+    try { ss.toast('❌ Error al guardar: ' + err.message, 'Produccion', 7); } catch (e2) {}
   } finally {
-    yarnFinishMobileSave_(range);
+    try { range.setValue(false); } catch (e2) {
+      try { SpreadsheetApp.getActiveSpreadsheet().getSheetByName(YARN_CONFIG.FORM_SHEET).getRange(YARN_CONFIG.MOBILE_SAVE_CELL_A1).setValue(false); } catch (e3) {}
+    }
+    try { yarnFinishMobileSave_(range); } catch (e2) {}
   }
 }
 
