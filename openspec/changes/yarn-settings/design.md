@@ -17,12 +17,14 @@ Add an isolated V8 Apps Script project under `apps-script/yarn-settings/`. The p
 ## Data Flow
 
 ```text
-Button / Yarn menu -> guardarTurno() -> readShiftSnapshot_()
+Checkbox K2 (onEdit) / Yarn menu -> guardarTurno() -> readShiftSnapshot_()
   -> validateShiftSnapshot_() -> acquire lock (5s, sleep, 5s retry)
   -> load DB indexes -> plan assignment upserts + weighing upserts/deletes
   -> apply plan -> flush -> success toast
        | failure: compensate -> Errors + failure toast
 ```
+
+Checkbox is `Settings!K2` (or `K2:L2` merged) `☑ GUARDAR TURNO` via `dataValidation` checkbox (desktop+móvil); `onEdit` detects `K2==TRUE` → calls `guardarTurno()` → on success/failure sets `K2=FALSE` after ~1s to make it reusable. Menu `Yarn → Guardar Turno` remains for desktop power users. No drawing button.
 
 `Ingest.gs` batch-reads `F4`, Standards `B10:C19`, assignments `B33:H42`, and weighing metadata/input `B50:H157`. A row is a weighing slot only when its machine, discharge number, and side metadata form a valid visible PK; blank gross weight deletes that existing PK and otherwise creates nothing. Numeric gross/tare values are normalized with blank tare as zero; `peso_neto = round2(bruto - (usos * peso_cono + peso_tacho))`.
 
@@ -52,7 +54,7 @@ Button / Yarn menu -> guardarTurno() -> readShiftSnapshot_()
 |---|---|---|
 | Unit | PKs, validation, net rounding, mutation planning | Pure-function cases in Apps Script editor until a runner exists. |
 | Integration | Insert/update, preserved `creado`, EC-03 delete, compensation, lock retry, Errors | Execute against a workbook copy with seeded DB rows and injected failing write/lock seams. |
-| E2E | Menu/button save, formulas retained, counts/kg toast, DB navigation | Manual authenticated verification on a sheet copy; never production. |
+| E2E | Menu/checkbox save, formulas retained, counts/kg toast, DB navigation | Manual authenticated verification on a sheet copy; never production. |
 
 ## Threat Matrix
 
@@ -60,7 +62,7 @@ N/A — no routing, shell, subprocess, VCS/PR automation, executable-file classi
 
 ## Migration / Rollout
 
-No data migration required. Deploy the isolated Apps Script project to a workbook copy, verify exact frozen headers and protected Standards/formula cells, then bind the drawing to `guardarTurno()`. Roll back by detaching the menu/button deployment; retain DB rows for audit.
+No data migration required. Deploy the isolated Apps Script project to a workbook copy, verify exact frozen headers and protected Standards/formula cells, then create checkbox `Settings!K2` (or `K2:L2` merged) `☑ GUARDAR TURNO` with `onEdit` handler that triggers `guardarTurno()` and auto-unchecks after ~1s. Roll back by detaching the menu/checkbox deployment; retain DB rows for audit.
 
 ## Open Questions
 

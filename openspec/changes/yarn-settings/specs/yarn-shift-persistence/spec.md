@@ -22,7 +22,7 @@ Persist one explicitly saved `Settings` shift as auditable assignment and weighi
 
 ### Requirement: Explicit Save Entry Points and Serialization
 
-The system MUST expose `Yarn → Guardar Turno` and support a drawing button bound to public `guardarTurno()`. A save MUST acquire the document lock for 5 seconds and retry once before failing; it MUST use `America/La_Paz` for audit timestamps.
+The system MUST expose `Yarn → Guardar Turno` (desktop) AND checkbox `Settings!K2` (or `K2:L2` merged) labeled `☑ GUARDAR TURNO` via `dataValidation` checkbox (desktop+móvil); both MUST invoke public `guardarTurno()`, and the checkbox handler MUST auto-clear `K2` to `FALSE` after ~1s on success or failure to make it reusable. No drawing button. A save MUST acquire the document lock for 5 seconds and retry once before failing; it MUST use `America/La_Paz` for audit timestamps.
 
 #### Scenario: Contended save
 - GIVEN another save owns the document lock

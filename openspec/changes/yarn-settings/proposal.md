@@ -25,9 +25,9 @@ None.
 
 ## Approach
 
-Implement only under `apps-script/yarn-settings/`, using modular V8 `.gs` files, built-in Apps Script services, batch reads/writes, and `America/La_Paz`. `guardarTurno()` validates `F4`, standards/titles, and numeric input; acquires `LockService.getDocumentLock()` for 5 seconds with one retry; then upserts the frozen DB schemas while preserving `creado` and refreshing `actualizado`, `editado_por`, and `rango_origen`. It computes `peso_neto = bruto - (usos * cono + tacho)` rounded to two decimals. Log failures to `Errors`; show count/kg toasts and optional post-save clearing.
+Implement only under `apps-script/yarn-settings/`, using modular V8 `.gs` files, built-in Apps Script services, batch reads/writes, and `America/La_Paz`. `guardarTurno()` validates `F4`, standards/titles, and numeric input; acquires `LockService.getDocumentLock()` for 5 seconds with one retry; then upserts the frozen DB schemas while preserving `creado` and refreshing `actualizado`, `editado_por`, and `rango_origen`. It computes `peso_neto = bruto - (usos * cono + tacho)` rounded to two decimals. Log failures to `Errors`; show count/kg toasts and optional post-save clearing. Save entry points are hybrid: `Yarn → Guardar Turno` menu (desktop) AND checkbox `Settings!K2` (or `K2:L2` merged) labeled `☑ GUARDAR TURNO` via `dataValidation` checkbox (desktop+móvil); `onEdit` detects `K2==TRUE` → calls `guardarTurno()` → on success/failure sets `K2=FALSE` after ~1s to make it reusable (auto-uncheck). No drawing button (to avoid duplication on desktop).
 
-**Alternative rejected:** per-cell `onEdit` auto-save would capture partial weighings, increase execution/quota pressure, and make controlled deletion harder. The button/menu save is the explicit shift-close boundary.
+**Alternative rejected:** per-cell `onEdit` auto-save would capture partial weighings, increase execution/quota pressure, and make controlled deletion harder; a drawing button is rejected in favor of the checkbox+menu hybrid for mobile compatibility without desktop duplication. The checkbox/menu save is the explicit shift-close boundary.
 
 ## Affected Areas
 
