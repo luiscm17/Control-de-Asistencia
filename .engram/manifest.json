@@ -16,6 +16,14 @@
       "sessions": 0,
       "memories": 1,
       "prompts": 49
+    },
+    {
+      "id": "435b4a2f",
+      "created_by": "luis-cm",
+      "created_at": "2026-09-05T19:39:21Z",
+      "sessions": 11,
+      "memories": 37,
+      "prompts": 131
     }
   ]
 }
