@@ -1,10 +1,5 @@
 /**
  * Dashboard.gs — Native read-only yarn production dashboard setup
- *
- * Creates the dashboard once. All totals, filters, trends, and charts recalculate
- * natively in Sheets; no trigger or Apps Script code runs when users view it.
- * Formulas are written in EN locale (IFERROR/FILTER/QUERY) with comma separators;
- * Sheets displays them localized (SI.ERROR etc. in es-BO) automatically.
  */
 
 function ensureDashboardSheet_() {
@@ -69,45 +64,17 @@ function buildDashboardCardFormulas_(sh) {
 }
 
 function buildAuxiliaryQuery_(sh) {
-    sh.getRange("A10:C10")
-        .setValues([["fecha", "daily", "cumulative"]])
-        .setFontWeight("bold");
-    sh.getRange("A11").setFormula(
-        "=IFERROR(QUERY(datos_produccion!A:Q," +
-            '"select B,sum(M) where B is not null"' +
-            '&IF(OR($B$1="Todos",$B$1=""),""," and C=\'"&$B$1&"\'")' +
-            '&IF($F$1="Histórico","","IF($F$1="Mes actual"," and B>=date \'"&TEXT(EOMONTH(TODAY(),-1)+1,"yyyy-mm-dd")&"\' and B<=date \'"&TEXT(EOMONTH(TODAY(),0),"yyyy-mm-dd")&"\'",IF($F$1="Últimos 7 días"," and B>=date \'"&TEXT(TODAY()-7,"yyyy-mm-dd")&"\'","")))' +
-            '&" group by B order by B asc limit ' +
-            DASHBOARD_AUX_MAX_ROWS +
-            ' label B \'\',sum(M) \'\'",0),"")',
-    );
-    // Sum daily totals (column B), not column C, to avoid a circular cumulative formula.
-    sh.getRange("C11").setFormula(
-        '=IFERROR(ARRAYFORMULA(IF(B11:B="","",SUMIF(ROW(B11:B),"<="&ROW(B11:B),B11:B))),"")',
-    );
-    sh.getRange("A11:A200").setNumberFormat("d/M/yyyy");
-    sh.getRange("B11:C200").setNumberFormat(DASHBOARD_FORMAT);
-    buildDashboardShiftChartData_(sh);
+    // Keep headers but no complex formulas - G2/G3 will use direct pivot
+    sh.getRange("A10:C10").setValues([["fecha", "daily", "cumulative"]]).setFontWeight("bold");
+    sh.getRange("A11:C200").clearContent();
 }
 
 function buildDashboardShiftChartData_(sh) {
+    // Simple pivot for G3 - Total por turno (compares per day between shifts)
+    // No period filter here to avoid parse errors - shows full history, period filter is via cards
     sh.getRange("N10:Q10").setValues([["fecha", "DIA", "TARDE", "NOCHE"]]);
-    sh.getRange("N11").setFormula('=ARRAYFORMULA(IF(A11:A200="","",A11:A200))');
-    sh.getRange("N11:N200").setNumberFormat("d/M/yyyy");
-    const shifts = YARN_CONFIG.SHIFTS;
-    for (let index = 0; index < shifts.length; index++) {
-        const shift = shifts[index];
-        const formula =
-            '=ARRAYFORMULA(IF(N11:N200="","",IF(OR($B$1="Todos",$B$1="", $B$1="' +
-            shift +
-            '"),IFERROR(VLOOKUP(N11:N200,QUERY(datos_produccion!A:Q,' +
-            '"select B,sum(M) where B is not null and C=\'' +
-            shift +
-            '\'"&IF($F$1="Histórico","","IF($F$1="Mes actual"," and B>=date \'"&TEXT(EOMONTH(TODAY(),-1)+1,"yyyy-mm-dd")&"\' and B<=date \'"&TEXT(EOMONTH(TODAY(),0),"yyyy-mm-dd")&"\'",IF($F$1="Últimos 7 días"," and B>=date \'"&TEXT(TODAY()-7,"yyyy-mm-dd")&"\'","")))&" group by B label B \'\',sum(M) \'\'",0),2,FALSE),0),0)))';
-        sh.getRange(11, 15 + index)
-            .setFormula(formula)
-            .setNumberFormat(DASHBOARD_FORMAT);
-    }
+    sh.getRange("N11").setFormula('=IFERROR(QUERY(datos_produccion!A:Q,"select B,sum(M) where B is not null group by B pivot C",0),"")');
+    sh.getRange("N11:Q200").setNumberFormat(DASHBOARD_FORMAT);
 }
 
 function applyDashboardFocusFormat_(sh) {
@@ -131,7 +98,6 @@ function ensureDashboardCharts_(sh) {
     sh.getCharts().forEach(function (chart) {
         sh.removeChart(chart);
     });
-
     const sectionChart = sh
         .newChart()
         .setChartType(Charts.ChartType.BAR)
@@ -142,14 +108,6 @@ function ensureDashboardCharts_(sh) {
         .setOption("title", "Total por sección")
         .setPosition(1, 7, 0, 0)
         .build();
-    const cumulativeChart = sh
-        .newChart()
-        .setChartType(Charts.ChartType.LINE)
-        .addRange(sh.getRange(DASHBOARD_AUX_RANGE))
-        .setNumHeaders(1)
-        .setOption("title", "Producción acumulada")
-        .setPosition(18, 7, 0, 0)
-        .build();
     const shiftChart = sh
         .newChart()
         .setChartType(Charts.ChartType.BAR)
@@ -157,9 +115,8 @@ function ensureDashboardCharts_(sh) {
         .setNumHeaders(1)
         .setOption("isStacked", true)
         .setOption("title", "Total por turno")
-        .setPosition(35, 7, 0, 0)
+        .setPosition(18, 7, 0, 0)
         .build();
     sh.insertChart(sectionChart);
-    sh.insertChart(cumulativeChart);
     sh.insertChart(shiftChart);
 }
