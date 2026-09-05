@@ -101,3 +101,23 @@ const YARN_CONFIG = {
     ACTUALIZADO: 16
   }
 };
+
+// --- YARN DASHBOARD CONFIGURATION ---
+const DASHBOARD_SHEET = 'dashboard';
+const DASHBOARD_AUX_RANGE = 'A10:C200';
+const DASHBOARD_AUX_MAX_ROWS = 200;
+const DASHBOARD_CARD_RANGE = {
+  finisor: 'D',
+  retorcido: 'E',
+  madejeras: 'F',
+  tintoreria: 'G',
+  secado: 'H',
+  devanado: 'I',
+  embolsado: 'J',
+  ovillado: 'K',
+  madejitas: 'L',
+  total_producto_terminado: 'M'
+};
+const DASHBOARD_CHART_ANCHORS = { SECTION: 'G1', CUMULATIVE: 'G2', SHIFT: 'G3' };
+const DASHBOARD_FORMAT = '#,##0.00';
+const DASHBOARD_FILTER_RANGES = { START_DATE: 'B1', END_DATE: 'C1', SHIFT: 'E1', FOCUS: 'F1' };

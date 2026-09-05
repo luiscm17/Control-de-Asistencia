@@ -1,0 +1,175 @@
+/**
+ * Dashboard.gs — Native read-only yarn production dashboard setup
+ *
+ * Creates the dashboard once. All totals, filters, trends, and charts recalculate
+ * natively in Sheets; no trigger or Apps Script code runs when users view it.
+ * Formulas are written in EN locale (IFERROR/FILTER/QUERY) with comma separators;
+ * Sheets displays them localized (SI.ERROR etc. in es-BO) automatically.
+ */
+
+function ensureDashboardSheet_() {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sh = ss.getSheetByName(DASHBOARD_SHEET);
+    if (!sh) sh = ss.insertSheet(DASHBOARD_SHEET);
+
+    sh.setFrozenRows(1);
+    sh.setRowHeight(1, 28);
+    sh.getRange("A1:F1").setValues([["Fecha desde", "", "", "Turno", "Todos", "Todas"]]);
+    sh.getRange("A1").setFontWeight("bold");
+    sh.getRange("D1").setFontWeight("bold");
+    applyDashboardValidations_(sh);
+    buildDashboardCardFormulas_(sh);
+    buildAuxiliaryQuery_(sh);
+    applyDashboardFocusFormat_(sh);
+    ensureDashboardCharts_(sh);
+    return sh;
+}
+
+function applyDashboardValidations_(sh) {
+    const dateRule = SpreadsheetApp.newDataValidation()
+        .requireDate()
+        .setAllowInvalid(true)
+        .setHelpText("Optional date in d/M/yyyy.")
+        .build();
+    sh.getRange(DASHBOARD_FILTER_RANGES.START_DATE)
+        .setDataValidation(dateRule)
+        .setNumberFormat("d/M/yyyy");
+    sh.getRange(DASHBOARD_FILTER_RANGES.END_DATE)
+        .setDataValidation(dateRule)
+        .setNumberFormat("d/M/yyyy");
+
+    const shiftRule = SpreadsheetApp.newDataValidation()
+        .requireValueInList(["Todos"].concat(YARN_CONFIG.SHIFTS), true)
+        .setAllowInvalid(false)
+        .build();
+    const focusRule = SpreadsheetApp.newDataValidation()
+        .requireValueInList(["Todas"].concat(YARN_CONFIG.PROCESS_FIELDS), true)
+        .setAllowInvalid(false)
+        .build();
+    sh.getRange(DASHBOARD_FILTER_RANGES.SHIFT).setDataValidation(shiftRule);
+    sh.getRange(DASHBOARD_FILTER_RANGES.FOCUS).setDataValidation(focusRule);
+}
+
+function buildDashboardCardFormulas_(sh) {
+    const fields = YARN_CONFIG.PROCESS_FIELDS.concat(["total_producto_terminado"]);
+    const labels = fields.map(function (field) {
+        return field.replace(/_/g, " ");
+    });
+    const formulas = fields.map(function (field) {
+        const column = DASHBOARD_CARD_RANGE[field];
+        return (
+            "=IFERROR(SUM(FILTER(datos_produccion!$" +
+            column +
+            "$2:$" +
+            column +
+            ',datos_produccion!$A$2:$A<>""' +
+            ',IF($B$1="",ROW(datos_produccion!$B$2:$B)>0,datos_produccion!$B$2:$B>=$B$1)' +
+            ',IF($C$1="",ROW(datos_produccion!$B$2:$B)>0,datos_produccion!$B$2:$B<=$C$1)' +
+            ',IF(OR($E$1="",$E$1="Todos"),ROW(datos_produccion!$C$2:$C)>0,datos_produccion!$C$2:$C=$E$1))),0)'
+        );
+    });
+
+    sh.getRange(3, 4, 1, labels.length).setValues([labels]);
+    sh.getRange(3, 4, 1, labels.length).setFontWeight("bold").setHorizontalAlignment("center");
+    sh.getRange(4, 4, 1, formulas.length).setFormulas([formulas]);
+    sh.getRange(4, 4, 1, formulas.length).setNumberFormat(DASHBOARD_FORMAT);
+}
+
+function buildAuxiliaryQuery_(sh) {
+    sh.getRange("A10:C10")
+        .setValues([["fecha", "daily", "cumulative"]])
+        .setFontWeight("bold");
+    sh.getRange("A11").setFormula(
+        "=IFERROR(QUERY(datos_produccion!A:Q," +
+            '"select B,sum(M) where B is not null"' +
+            '&IF(OR($E$1="Todos",$E$1=""),""," and C=\'"&$E$1&"\'")' +
+            '&IF(AND($B$1="",$C$1=""),"",IF(AND($B$1<>"",$C$1<>"")," and B>=date \'"&TEXT($B$1,"yyyy-mm-dd")&"\' and B<=date \'"&TEXT($C$1,"yyyy-mm-dd")&"\'",IF($B$1<>""," and B>=date \'"&TEXT($B$1,"yyyy-mm-dd")&"\'"," and B<=date \'"&TEXT($C$1,"yyyy-mm-dd")&"\'")))' +
+            '&" group by B order by B asc limit ' +
+            DASHBOARD_AUX_MAX_ROWS +
+            ' label B \'\',sum(M) \'\'",0),"")',
+    );
+    // Sum daily totals (column B), not column C, to avoid a circular cumulative formula.
+    sh.getRange("C11").setFormula(
+        '=IFERROR(ARRAYFORMULA(IF(B11:B="","",SUMIF(ROW(B11:B),"<="&ROW(B11:B),B11:B))),"")',
+    );
+    sh.getRange("A11:A200").setNumberFormat("d/M/yyyy");
+    sh.getRange("B11:C200").setNumberFormat(DASHBOARD_FORMAT);
+    buildDashboardShiftChartData_(sh);
+}
+
+function buildDashboardShiftChartData_(sh) {
+    sh.getRange("N10:Q10").setValues([["fecha", "DIA", "TARDE", "NOCHE"]]);
+    sh.getRange("N11").setFormula('=ARRAYFORMULA(IF(A11:A200="","",A11:A200))');
+    sh.getRange("N11:N200").setNumberFormat("d/M/yyyy");
+    const shifts = YARN_CONFIG.SHIFTS;
+    for (let index = 0; index < shifts.length; index++) {
+        const shift = shifts[index];
+        const formula =
+            '=ARRAYFORMULA(IF(N11:N200="","",IFERROR(VLOOKUP(N11:N200,QUERY(datos_produccion!A:Q,' +
+            "\"select B,sum(M) where B is not null and C='" +
+            shift +
+            "'" +
+            '&IF(OR($E$1="Todos",$E$1=""),"",IF($E$1="' +
+            shift +
+            '",""," and 1=0"))' +
+            '&IF(AND($B$1="",$C$1=""),"",IF(AND($B$1<>"",$C$1<>"")," and B>=date \'"&TEXT($B$1,"yyyy-mm-dd")&"\' and B<=date \'"&TEXT($C$1,"yyyy-mm-dd")&"\'",IF($B$1<>""," and B>=date \'"&TEXT($B$1,"yyyy-mm-dd")&"\'"," and B<=date \'"&TEXT($C$1,"yyyy-mm-dd")&"\'")))' +
+            "&\" group by B label B '',sum(M) ''\",0),2,FALSE),0)))";
+        sh.getRange(11, 15 + index)
+            .setFormula(formula)
+            .setNumberFormat(DASHBOARD_FORMAT);
+    }
+}
+
+function applyDashboardFocusFormat_(sh) {
+    const cardRange = sh.getRange("D3:L4");
+    const rules = sh.getConditionalFormatRules().filter(function (rule) {
+        return rule.getRanges().every(function (range) {
+            return range.getA1Notation() !== "D3:L4";
+        });
+    });
+    rules.push(
+        SpreadsheetApp.newConditionalFormatRule()
+            .whenFormulaSatisfied('=AND($F$1=D$3,$F$1<>"Todas")')
+            .setBackground("#fff2cc")
+            .setRanges([cardRange])
+            .build(),
+    );
+    sh.setConditionalFormatRules(rules);
+}
+
+function ensureDashboardCharts_(sh) {
+    sh.getCharts().forEach(function (chart) {
+        sh.removeChart(chart);
+    });
+
+    const sectionChart = sh
+        .newChart()
+        .setChartType(Charts.ChartType.BAR)
+        .addRange(sh.getRange("D3:L4"))
+        .setTransposeRowsAndColumns(true)
+        .setNumHeaders(1)
+        .setOption("legend", { position: "none" })
+        .setOption("title", "Total por sección")
+        .setPosition(1, 7, 0, 0)
+        .build();
+    const cumulativeChart = sh
+        .newChart()
+        .setChartType(Charts.ChartType.LINE)
+        .addRange(sh.getRange(DASHBOARD_AUX_RANGE))
+        .setNumHeaders(1)
+        .setOption("title", "Producción acumulada")
+        .setPosition(18, 7, 0, 0)
+        .build();
+    const shiftChart = sh
+        .newChart()
+        .setChartType(Charts.ChartType.BAR)
+        .addRange(sh.getRange("N10:Q200"))
+        .setNumHeaders(1)
+        .setOption("isStacked", true)
+        .setOption("title", "Total por turno")
+        .setPosition(35, 7, 0, 0)
+        .build();
+    sh.insertChart(sectionChart);
+    sh.insertChart(cumulativeChart);
+    sh.insertChart(shiftChart);
+}

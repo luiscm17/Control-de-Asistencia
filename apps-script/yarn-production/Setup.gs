@@ -16,8 +16,9 @@ function setupYarnProduction() {
   applyYarnValidations_();
   installTotalFormulas_();
   protectYarnFixedRanges_();
+  ensureDashboardSheet_();
   SpreadsheetApp.flush();
-  ss.toast('✅ Produccion configurada: datos_produccion, validaciones y formulas.', 'Produccion', 7);
+  ss.toast('✅ Produccion y dashboard configurados.', 'Produccion', 7);
 }
 
 // --- DATA SHEET A:Q ---
