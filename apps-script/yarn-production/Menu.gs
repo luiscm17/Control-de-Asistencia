@@ -41,7 +41,7 @@ function guardarProduccion() {
   const formSh = ss.getSheetByName(YARN_CONFIG.FORM_SHEET);
   if (!formSh) {
     ss.toast('Hoja ' + YARN_CONFIG.FORM_SHEET + ' no encontrada.', 'Produccion', 7);
-    return;
+    return { ok: false, reason: 'form_sheet_missing', inserted: 0, updated: 0 };
   }
 
   // Validate G2
@@ -49,7 +49,7 @@ function guardarProduccion() {
   const iso = yarnParseG2ToIso_(g2Val);
   if (iso === '') {
     ss.toast('Seleccione una fecha valida en G2.', 'Produccion', 7);
-    return;
+    return { ok: false, reason: 'invalid_date', inserted: 0, updated: 0 };
   }
 
   // Batch read C6:L8 (3 rows x 10 cols: C..L)
@@ -79,7 +79,7 @@ function guardarProduccion() {
   }
   if (!anyEligible) {
     ss.toast('Nada para guardar — complete al menos un turno en D6:L8.', 'Produccion', 7);
-    return;
+    return { ok: false, reason: 'no_eligible_rows', inserted: 0, updated: 0 };
   }
 
   let result;
@@ -92,12 +92,12 @@ function guardarProduccion() {
       ss.toast('❌ Error al guardar: ' + err.message, 'Produccion', 7);
     }
     Logger.log('guardarProduccion error: ' + err.message);
-    return;
+    return { ok: false, reason: 'save_error', inserted: 0, updated: 0 };
   }
 
   if (result.queued) {
     // Lock timeout — no writes, user retries
-    return;
+    return { ok: false, reason: result.error || 'lock_timeout', inserted: 0, updated: 0 };
   }
 
   const parts = [];
@@ -110,4 +110,5 @@ function guardarProduccion() {
     ss.toast('✅ ' + total + ' turno(s) guardado(s) — ' + parts.join(', ') + ' — ' + iso, 'Produccion', 7);
   }
   SpreadsheetApp.flush();
+  return { ok: total > 0, reason: total > 0 ? 'saved' : 'no_changes', inserted: result.ins, updated: result.upd };
 }
