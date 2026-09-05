@@ -39,11 +39,11 @@ Chain strategy: stacked-to-main
 
 ## Phase 3: Save Flow and UX (PR 3)
 
-- [ ] 3.1 RED: create `apps-script/yarn-settings/tests/Core.test.gs` for lock retry, pre-validation zero writes, and injected-write rollback.
-- [ ] 3.2 GREEN: in `apps-script/yarn-settings/Core.gs`, implement public `guardarTurno()` to validate, lock, apply one plan, flush, toast, and optionally clear input grids.
-- [ ] 3.3 Create `apps-script/yarn-settings/Menu.gs` with `Yarn → Guardar Turno` menu and DB navigation/re-sync handlers; create checkbox `Settings!K2` (or `K2:L2` merged) `☑ GUARDAR TURNO` via `dataValidation` checkbox with `onEdit` handler that triggers `guardarTurno()` and auto-unchecks `K2=FALSE` after ~1s on success/failure. No drawing button.
+- [x] 3.1 RED: create `apps-script/yarn-settings/tests/Core.test.gs` for lock retry, pre-validation zero writes, and injected-write rollback.
+- [x] 3.2 GREEN: in `apps-script/yarn-settings/Core.gs`, implement public `guardarTurno()` to validate, lock, apply one plan, flush, toast, and optionally clear input grids.
+- [x] 3.3 Create `apps-script/yarn-settings/Menu.gs` with `Yarn → Guardar Turno` menu and DB navigation/re-sync handlers; create checkbox `Settings!K2` (or `K2:L2` merged) `☑ GUARDAR TURNO` via `dataValidation` checkbox with `onEdit` handler that triggers `guardarTurno()` and auto-unchecks `K2=FALSE` after ~1s on success/failure. No drawing button.
 
 ## Phase 4: Verification and Documentation (PR 3)
 
 - [ ] 4.1 Verify deployed `apps-script/yarn-settings/` (read-only) on an authenticated COPY: save/re-save, 0–80 rows, EC-03, lock/failure `Errors`, formulas, and isolation.
-- [ ] 4.2 Create `apps-script/yarn-settings/README.md` with COPY-only deployment, OAuth/menu/checkbox binding, DB schema, re-sync, and rollback instructions.
+- [x] 4.2 Create `apps-script/yarn-settings/README.md` with COPY-only deployment, OAuth/menu/checkbox binding, DB schema, re-sync, and rollback instructions.
