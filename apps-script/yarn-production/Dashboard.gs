@@ -105,15 +105,12 @@ function buildDashboardShiftChartData_(sh) {
     for (let index = 0; index < shifts.length; index++) {
         const shift = shifts[index];
         const formula =
-            '=ARRAYFORMULA(IF(N11:N200="","",IFERROR(VLOOKUP(N11:N200,QUERY(datos_produccion!A:Q,' +
-            "\"select B,sum(M) where B is not null and C='" +
+            '=ARRAYFORMULA(IF(N11:N200="","",IF(OR($E$1="Todos",$E$1="", $E$1="' +
             shift +
-            "'" +
-            '&IF(OR($E$1="Todos",$E$1=""),"",IF($E$1="' +
+            '"),IFERROR(VLOOKUP(N11:N200,QUERY(datos_produccion!A:Q,' +
+            '"select B,sum(M) where B is not null and C=\'' +
             shift +
-            '",""," and 1=0"))' +
-            '&IF(AND($B$1="",$C$1=""),"",IF(AND($B$1<>"",$C$1<>"")," and B>=date \'"&TEXT($B$1,"yyyy-mm-dd")&"\' and B<=date \'"&TEXT($C$1,"yyyy-mm-dd")&"\'",IF($B$1<>""," and B>=date \'"&TEXT($B$1,"yyyy-mm-dd")&"\'"," and B<=date \'"&TEXT($C$1,"yyyy-mm-dd")&"\'")))' +
-            "&\" group by B label B '',sum(M) ''\",0),2,FALSE),0)))";
+            '\'&IF(AND($B$1="",$C$1=""),"",IF(AND($B$1<>"",$C$1<>"")," and B>=date \'"&TEXT($B$1,"yyyy-mm-dd")&"\' and B<=date \'"&TEXT($C$1,"yyyy-mm-dd")&"\'",IF($B$1<>""," and B>=date \'"&TEXT($B$1,"yyyy-mm-dd")&"\'"," and B<=date \'"&TEXT($C$1,"yyyy-mm-dd")&"\'")))&" group by B label B \'\',sum(M) \'\'",0),2,FALSE),0),0)))';
         sh.getRange(11, 15 + index)
             .setFormula(formula)
             .setNumberFormat(DASHBOARD_FORMAT);
