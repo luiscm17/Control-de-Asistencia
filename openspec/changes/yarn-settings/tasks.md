@@ -26,10 +26,10 @@ Chain strategy: stacked-to-main
 
 ## Phase 1: Foundation and Snapshot (PR 1)
 
-- [ ] 1.1 Create `apps-script/yarn-settings/appsscript.json` and `Config.gs` with V8, `America/La_Paz`, frozen A:M/A:O headers, ranges, limits, and error codes.
-- [ ] 1.2 In `apps-script/yarn-settings/Config.gs`, add idempotent DB/`Errors` creation, frozen/protected headers, F4 DATE validation, and Standards dropdown.
-- [ ] 1.3 RED: create `apps-script/yarn-settings/tests/Ingest.test.gs` for invalid F4/title, empty form, excluded helpers, and invalid numeric gross/tare.
-- [ ] 1.4 GREEN: batch-read `F4`, `B10:C19`, `B33:H42`, and `B50:H157`; build immutable assignments/weighings with valid visible PK metadata only.
+- [x] 1.1 Create `apps-script/yarn-settings/appsscript.json` and `Config.gs` with V8, `America/La_Paz`, frozen A:M/A:O headers, ranges, limits, and error codes.
+- [x] 1.2 In `apps-script/yarn-settings/Config.gs`, add idempotent DB/`Errors` creation, frozen/protected headers, F4 DATE validation, and Standards dropdown.
+- [x] 1.3 RED: create `apps-script/yarn-settings/tests/Ingest.test.gs` for invalid F4/title, empty form, excluded helpers, and invalid numeric gross/tare.
+- [x] 1.4 GREEN: batch-read `F4`, `B10:C19`, `B33:H42`, and `B50:H157`; build immutable assignments/weighings with valid visible PK metadata only.
 
 ## Phase 2: Atomic Persistence (PR 2)
 
