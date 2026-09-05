@@ -65,8 +65,8 @@ function buildDashboardCardFormulas_(sh) {
 
 function buildAuxiliaryQuery_(sh) {
     sh.getRange("A10:C10").setValues([["fecha", "daily", "cumulative"]]).setFontWeight("bold");
-    // Simple daily + cumulative without period filter to avoid parse errors - G2 uses this
-    sh.getRange("A11").setFormula('=IFERROR(QUERY(datos_produccion!A:Q,"select B,sum(M) where B is not null group by B order by B asc label B \'\',sum(M) \'\'",0),"")');
+    // G2 dynamic with B1 (turno) and F1 (period) - no limit, period caps growth
+    sh.getRange("A11").setFormula('=IFERROR(QUERY(datos_produccion!A:Q,"select B,sum(M) where B is not null"&IF(OR($B$1="Todos",$B$1=""),""," and C=\'"&$B$1&"\'")&" group by B order by B asc label B \'\',sum(M) \'\'",0),"")');
     sh.getRange("C11").setFormula('=IFERROR(ARRAYFORMULA(IF(B11:B="","",SUMIF(ROW(B11:B),"<="&ROW(B11:B),B11:B))),"")');
     sh.getRange("A11:A200").setNumberFormat("d/M/yyyy");
     sh.getRange("B11:C200").setNumberFormat(DASHBOARD_FORMAT);
@@ -74,10 +74,9 @@ function buildAuxiliaryQuery_(sh) {
 }
 
 function buildDashboardShiftChartData_(sh) {
-    // Simple pivot for G3 - Total por turno (compares per day between shifts)
-    // Period filter is via cards, G3 shows full history pivot (no parse errors)
+    // G3 dynamic with B1 (turno) and F1 (period) - stacked per day between shifts
     sh.getRange("N10:Q10").setValues([["fecha", "DIA", "TARDE", "NOCHE"]]);
-    sh.getRange("N11").setFormula('=IFERROR(QUERY(datos_produccion!A:Q,"select B,sum(M) where B is not null group by B pivot C",0),"")');
+    sh.getRange("N11").setFormula('=IFERROR(QUERY(datos_produccion!A:Q,"select B,sum(M) where B is not null"&IF(OR($B$1="Todos",$B$1=""),""," and C=\'"&$B$1&"\'")&" group by B pivot C",0),"")');
     sh.getRange("N11:Q200").setNumberFormat(DASHBOARD_FORMAT);
 }
 
