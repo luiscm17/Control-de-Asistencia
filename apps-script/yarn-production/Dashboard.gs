@@ -64,18 +64,23 @@ function buildDashboardCardFormulas_(sh) {
 }
 
 function buildAuxiliaryQuery_(sh) {
-    // Keep headers but no complex formulas - G2/G3 will use direct pivot
     sh.getRange("A10:C10").setValues([["fecha", "daily", "cumulative"]]).setFontWeight("bold");
-    sh.getRange("A11:C200").clearContent();
+    // Simple daily + cumulative without period filter to avoid parse errors - G2 uses this
+    sh.getRange("A11").setFormula('=IFERROR(QUERY(datos_produccion!A:Q,"select B,sum(M) where B is not null group by B order by B asc label B \'\',sum(M) \'\'",0),"")');
+    sh.getRange("C11").setFormula('=IFERROR(ARRAYFORMULA(IF(B11:B="","",SUMIF(ROW(B11:B),"<="&ROW(B11:B),B11:B))),"")');
+    sh.getRange("A11:A200").setNumberFormat("d/M/yyyy");
+    sh.getRange("B11:C200").setNumberFormat(DASHBOARD_FORMAT);
+    buildDashboardShiftChartData_(sh);
 }
 
 function buildDashboardShiftChartData_(sh) {
     // Simple pivot for G3 - Total por turno (compares per day between shifts)
-    // No period filter here to avoid parse errors - shows full history, period filter is via cards
+    // Period filter is via cards, G3 shows full history pivot (no parse errors)
     sh.getRange("N10:Q10").setValues([["fecha", "DIA", "TARDE", "NOCHE"]]);
     sh.getRange("N11").setFormula('=IFERROR(QUERY(datos_produccion!A:Q,"select B,sum(M) where B is not null group by B pivot C",0),"")');
     sh.getRange("N11:Q200").setNumberFormat(DASHBOARD_FORMAT);
 }
+
 
 function applyDashboardFocusFormat_(sh) {
     const cardRange = sh.getRange("D3:L4");
@@ -108,6 +113,14 @@ function ensureDashboardCharts_(sh) {
         .setOption("title", "Total por sección")
         .setPosition(1, 7, 0, 0)
         .build();
+    const cumulativeChart = sh
+        .newChart()
+        .setChartType(Charts.ChartType.LINE)
+        .addRange(sh.getRange("A10:C200"))
+        .setNumHeaders(1)
+        .setOption("title", "Producción acumulada")
+        .setPosition(18, 7, 0, 0)
+        .build();
     const shiftChart = sh
         .newChart()
         .setChartType(Charts.ChartType.BAR)
@@ -115,8 +128,9 @@ function ensureDashboardCharts_(sh) {
         .setNumHeaders(1)
         .setOption("isStacked", true)
         .setOption("title", "Total por turno")
-        .setPosition(18, 7, 0, 0)
+        .setPosition(35, 7, 0, 0)
         .build();
     sh.insertChart(sectionChart);
+    sh.insertChart(cumulativeChart);
     sh.insertChart(shiftChart);
 }
