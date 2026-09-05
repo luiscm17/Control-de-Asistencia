@@ -3,6 +3,7 @@
  *
  * Pure helpers: date key normalization (America/La_Paz), eligibility,
  * zero-filling, totals, audit merging. Simple onEdit for G2 only.
+ * The installable mobile handler is limited to M4 FALSE -> TRUE saves.
  * Batch reads/writes; never touches C6:C8 or totals C9:L9 / C10:J10.
  */
 
@@ -136,6 +137,71 @@ function yarnBuildRecordFromFormRow_(isoDate, turno, normalizedValues, editorEma
   return row;
 }
 
+// --- MOBILE SAVE EVENT FILTERING ---
+function yarnIsMobileSaveEvent_(e) {
+  if (!e || !e.range || e.value !== 'TRUE' || e.oldValue !== 'FALSE') return false;
+  const range = e.range;
+  if (range.getNumRows() !== 1 || range.getNumColumns() !== 1) return false;
+  const sh = range.getSheet();
+  return sh.getName() === YARN_CONFIG.FORM_SHEET &&
+    range.getRow() === YARN_CONFIG.MOBILE_SAVE_ROW &&
+    range.getColumn() === YARN_CONFIG.MOBILE_SAVE_COL;
+}
+
+function yarnMobileSaveResult_(result) {
+  const saved = result && result.ok === true;
+  return { resetCheckbox: saved, reason: saved ? 'saved' : String((result && result.reason) || 'save_failed') };
+}
+
+function yarnIsMobileSaveDebounced_(marker, now) {
+  const match = /^yarn-mobile-save:(\d+)$/.exec(String(marker || ''));
+  return Boolean(match) && now - Number(match[1]) < YARN_CONFIG.MOBILE_SAVE_DEBOUNCE_MS;
+}
+
+function yarnTryStartMobileSave_(range) {
+  const lock = LockService.getDocumentLock();
+  let locked = false;
+  try {
+    locked = lock.tryLock(1000);
+    if (!locked) return false;
+    const now = new Date().getTime();
+    if (yarnIsMobileSaveDebounced_(range.getNote(), now)) return false;
+    range.setNote('yarn-mobile-save:' + now);
+    return true;
+  } finally {
+    if (locked) lock.releaseLock();
+  }
+}
+
+function yarnFinishMobileSave_(range) {
+  range.clearNote();
+}
+
+/**
+ * Installable edit trigger for the native mobile checkbox only.
+ * It deliberately does not replace the simple G2 onEdit handler below.
+ */
+function yarnMobileOnEdit(e) {
+  if (!yarnIsMobileSaveEvent_(e)) return;
+  const range = e.range;
+  if (!yarnTryStartMobileSave_(range)) return;
+  try {
+    const outcome = yarnMobileSaveResult_(guardarProduccion());
+    // Always reset to FALSE so next shift (any day) can save - checkbox replaces button and must be unchecked
+    range.setValue(false);
+    if (!outcome.resetCheckbox) {
+      // Was a failure - toast already shown by guardarProduccion, keep a retry hint
+      e.source.toast('⚠️ Revisá los datos e intentá de nuevo.', 'Produccion', 5);
+    }
+  } catch (err) {
+    Logger.log('yarnMobileOnEdit error: ' + err.message + ' stack: ' + err.stack);
+    e.source.toast('❌ Error al guardar: ' + err.message, 'Produccion', 7);
+    try { range.setValue(false); } catch(e2) {}
+  } finally {
+    yarnFinishMobileSave_(range);
+  }
+}
+
 // --- FORM LOAD / CLEAR (D6:L8 only) ---
 
 function yarnClearProcessInputs_() {
@@ -199,7 +265,11 @@ function onEdit(e) {
     const raw = e.range.getValue();
     const iso = yarnParseG2ToIso_(raw);
     if (iso === '') {
-      // Blank/invalid — do nothing per spec
+      // Blank/invalid — do nothing per spec, but ensure checkbox is FALSE for next save
+      try {
+        const cb = sh.getRange(YARN_CONFIG.MOBILE_SAVE_CELL_A1);
+        if (cb.getValue() === true) cb.setValue(false);
+      } catch(e) {}
       return;
     }
     // Batch lookup by date
@@ -212,6 +282,11 @@ function onEdit(e) {
       yarnClearProcessInputs_();
       e.source.toast('🆕 ' + iso + ' sin registros — formulario listo.', 'Produccion', 5);
     }
+    // Ensure checkbox is FALSE for new day/loaded data so next shift can save
+    try {
+      const cb2 = sh.getRange(YARN_CONFIG.MOBILE_SAVE_CELL_A1);
+      if (cb2.getValue() === true) cb2.setValue(false);
+    } catch(e) {}
   } catch (err) {
     Logger.log('onEdit yarn-production: ' + err.message + ' stack: ' + err.stack);
     try {
@@ -274,6 +349,48 @@ function yarnTestHelpers_() {
   assert('total', yarnComputeTotalProductoTerminado_(200, 303.5, 0), 503.5);
   const norm = yarnNormalizeProcessValues_([850, 0, 0, 408, 1020, 912, 200, 303.5, 0]);
   assert('normalize full', norm, [850, 0, 0, 408, 1020, 912, 200, 303.5, 0]);
+  const mobileEvent = function (overrides) {
+    const data = overrides || {};
+    return {
+      value: data.value == null ? 'TRUE' : data.value,
+      oldValue: data.oldValue == null ? 'FALSE' : data.oldValue,
+      range: {
+        getNumRows: function () { return data.rows == null ? 1 : data.rows; },
+        getNumColumns: function () { return data.cols == null ? 1 : data.cols; },
+        getRow: function () { return data.row == null ? YARN_CONFIG.MOBILE_SAVE_ROW : data.row; },
+        getColumn: function () { return data.col == null ? YARN_CONFIG.MOBILE_SAVE_COL : data.col; },
+        getSheet: function () { return { getName: function () { return data.sheet || YARN_CONFIG.FORM_SHEET; } }; }
+      }
+    };
+  };
+  assert('mobile event accepts M4 FALSE->TRUE', yarnIsMobileSaveEvent_(mobileEvent()), true);
+  assert('mobile event ignores non-M4 edit', yarnIsMobileSaveEvent_(mobileEvent({ col: 12 })), false);
+  assert('mobile event ignores multi-cell edit', yarnIsMobileSaveEvent_(mobileEvent({ cols: 2 })), false);
+  assert('mobile event ignores missing metadata', yarnIsMobileSaveEvent_({ range: mobileEvent().range }), false);
+  assert('mobile event ignores reset edit', yarnIsMobileSaveEvent_(mobileEvent({ value: 'FALSE', oldValue: 'TRUE' })), false);
+  assert('successful save resets checkbox', yarnMobileSaveResult_({ ok: true, reason: 'saved' }), { resetCheckbox: true, reason: 'saved' });
+  assert('invalid G2 retains checkbox', yarnMobileSaveResult_({ ok: false, reason: 'invalid_date' }), { resetCheckbox: false, reason: 'invalid_date' });
+  assert('no eligible row retains checkbox', yarnMobileSaveResult_({ ok: false, reason: 'no_eligible_rows' }), { resetCheckbox: false, reason: 'no_eligible_rows' });
+  assert('failed save retains checkbox', yarnMobileSaveResult_({ ok: false, reason: 'lock_timeout' }), { resetCheckbox: false, reason: 'lock_timeout' });
+  assert('concurrent re-entry is debounced', yarnIsMobileSaveDebounced_('yarn-mobile-save:1000', 1000 + YARN_CONFIG.MOBILE_SAVE_DEBOUNCE_MS - 1), true);
+  assert('expired mobile marker permits retry', yarnIsMobileSaveDebounced_('yarn-mobile-save:1000', 1000 + YARN_CONFIG.MOBILE_SAVE_DEBOUNCE_MS), false);
+  assert('empty TARDE remains ineligible', yarnIsRowEligible_(['', '', '', '', '', '', '', '', '']), false);
+  assert('DIA and NOCHE are eligible independently', [
+    yarnIsRowEligible_([1, '', '', '', '', '', '', '', '']),
+    yarnIsRowEligible_(['', '', '', '', '', '', '', '', 1])
+  ], [true, true]);
+  const existingTarde = new Array(YARN_CONFIG.HEADER.length).fill('');
+  existingTarde[YARN_CONFIG.IDX.REGISTRADO_POR] = 'operator@example.com';
+  existingTarde[YARN_CONFIG.IDX.CREADO] = '2026-09-05 08:00:00';
+  const updatedTarde = yarnBuildRecordFromFormRow_(
+    '2026-09-05', 'TARDE', [0, 0, 0, 0, 0, 0, 3, 4, 5], 'editor@example.com', '2026-09-05 12:00:00', existingTarde
+  );
+  assert('existing TARDE preserves insert audit', [
+    updatedTarde[YARN_CONFIG.IDX.REGISTRADO_POR],
+    updatedTarde[YARN_CONFIG.IDX.CREADO],
+    updatedTarde[YARN_CONFIG.IDX.EDITADO_POR],
+    updatedTarde[YARN_CONFIG.IDX.TOTAL]
+  ], ['operator@example.com', '2026-09-05 08:00:00', 'editor@example.com', 12]);
   Logger.log(tests.join('\n'));
   return tests.join('\n');
 }
