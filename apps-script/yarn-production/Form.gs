@@ -231,7 +231,7 @@ function yarnMobileOnEdit(e) {
     Logger.log('M4 outcome: '+JSON.stringify(outcome));
     if (!outcome.resetCheckbox) {
       const ss = (e && e.source) ? e.source : SpreadsheetApp.getActiveSpreadsheet();
-      try { ss.toast('⚠️ Revisá los datos e intentá de nuevo.', 'Produccion', 5); } catch (e2) {}
+      try { ss.toast('⚠️ ' + outcome.reason + ' — revisá G2/D6:L8', 'Produccion', 7); } catch (e2) {}
     }
   } catch (err) {
     Logger.log('yarnMobileOnEdit error: ' + err.message + ' stack: ' + err.stack);
