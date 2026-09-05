@@ -33,9 +33,9 @@ Chain strategy: stacked-to-main
 
 ## Phase 2: Atomic Persistence (PR 2)
 
-- [ ] 2.1 RED: create `apps-script/yarn-settings/tests/Persistence.test.gs` for re-save, null-tare rounding, 0 rows, and EC-03 single-PK deletion.
-- [ ] 2.2 GREEN: in `apps-script/yarn-settings/Persistence.gs`, index both DBs and batch upsert/delete by frozen PKs, preserving `creado` and refreshing audit/source fields.
-- [ ] 2.3 Add compensating rollback for affected rows/append boundary and best-effort failure evidence plus `unknown` editor fallback in `apps-script/yarn-settings/Errors.gs`.
+- [x] 2.1 RED: create `apps-script/yarn-settings/tests/Persistence.test.gs` for re-save, null-tare rounding, 0 rows, and EC-03 single-PK deletion.
+- [x] 2.2 GREEN: in `apps-script/yarn-settings/Persistence.gs`, index both DBs and batch upsert/delete by frozen PKs, preserving `creado` and refreshing audit/source fields.
+- [x] 2.3 Add compensating rollback for affected rows/append boundary and best-effort failure evidence plus `unknown` editor fallback in `apps-script/yarn-settings/Errors.gs`.
 
 ## Phase 3: Save Flow and UX (PR 3)
 
