@@ -1,6 +1,6 @@
 /**
  * Menu.gs — Desktop menu and installable handlers for Yarn Settings.
- * Handles K2 save checkbox and F4/F5 date+turno hydration (composite filter).
+ * Handles I8 save checkbox and F4/F5 date+turno hydration (composite filter).
  */
 
 function onOpen() {
@@ -91,7 +91,7 @@ function yarnIsSaveCheckboxEvent_(event) {
   if (sheet.getName() !== YARN_SETTINGS_CONFIG.SHEETS.SETTINGS) return false;
   var ck = (typeof yarnParseA1_ === 'function')
     ? yarnParseA1_(YARN_SETTINGS_CONFIG.RANGES.SAVE_CHECKBOX)
-    : { row: 2, col: 11 };
+    : { row: 8, col: 9 };
   if (range.getRow() !== ck.row || range.getColumn() !== ck.col) return false;
   const value = event.value === undefined ? range.getValue() : event.value;
   return value === true || String(value).toUpperCase() === 'TRUE' ||
@@ -129,14 +129,7 @@ function yarnHydrateSettingsForm_(ss, date, turno) {
     throw error;
   }
 
-  var assignmentRangeA1 = YARN_SETTINGS_CONFIG.RANGES.ASSIGNMENTS;
   var weighingRangeA1 = YARN_SETTINGS_CONFIG.RANGES.WEIGHINGS;
-  var ap = yarnParseRange_(assignmentRangeA1);
-  var wp = yarnParseRange_(weighingRangeA1);
-  var assignmentHeight = ap.r2 - ap.r1 + 1;
-  var assignmentWidth = ap.c2 - ap.c1 + 1;
-  var weighingHeight = wp.r2 - wp.r1 + 1;
-  var weighingWidth = wp.c2 - wp.c1 + 1;
 
   // Filter assignments matching composite key
   var matchingAssignments = [];
@@ -176,50 +169,121 @@ function yarnHydrateSettingsForm_(ss, date, turno) {
     return;
   }
 
-  // Build assignment form matrix B33:H42 (7 cols)
-  var assignmentMatrix = [];
-  for (var i = 0; i < assignmentHeight; i++) assignmentMatrix.push(new Array(assignmentWidth).fill(''));
-  // Sort assignments by machine for stable hydration then fill sequentially
+  // Assignments: only C33:E42 (cabos/titulo/frentes) — preserve B labels and F:H formulas
+  // Build map machine -> [cabos, titulo, frentes] then fill C:E by PK
+  var assignmentMap = {};
   matchingAssignments.sort(function (a, b) {
     var ma = yarnText_(a.length >= 14 ? a[3] : a[2]);
     var mb = yarnText_(b.length >= 14 ? b[3] : b[2]);
     return ma.localeCompare(mb);
   });
-  for (var idx = 0; idx < matchingAssignments.length && idx < assignmentHeight; idx++) {
-    var av = matchingAssignments[idx];
-    // New schema: retorcedora 3, cabos 4, titulo 5, frentes 6, prod_dia 7, prod_turno 8, lotes 9
-    // Old schema: retorcedora 2, cabos 3, titulo 4, frentes 5, prod_dia 6, etc.
-    var retorcedora, cabos, titulo, frentes, prodDia, prodTurno, lotes;
+  matchingAssignments.forEach(function (av) {
+    var retorcedora, cabos, titulo, frentes;
     if (av.length >= 14) {
-      retorcedora = av[3]; cabos = av[4]; titulo = av[5]; frentes = av[6]; prodDia = av[7]; prodTurno = av[8]; lotes = av[9];
+      retorcedora = av[3]; cabos = av[4]; titulo = av[5]; frentes = av[6];
     } else {
-      retorcedora = av[2]; cabos = av[3]; titulo = av[4]; frentes = av[5]; prodDia = av[6]; prodTurno = av[7]; lotes = av[8];
+      retorcedora = av[2]; cabos = av[3]; titulo = av[4]; frentes = av[5];
     }
-    assignmentMatrix[idx] = [retorcedora, cabos, titulo, frentes, prodDia, prodTurno, lotes];
+    var key = yarnText_(retorcedora).toUpperCase();
+    if (key) assignmentMap[key] = [cabos, titulo, frentes];
+  });
+
+  // Read current B33:B42 labels to map correctly; fallback to sequential if unavailable
+  var assignmentLabels = [];
+  try {
+    assignmentLabels = settings.getRange('B33:B42').getValues();
+  } catch (ignore) {
+    assignmentLabels = [];
+  }
+  var assignmentInputs = [];
+  for (var i = 0; i < 10; i++) {
+    var label = '';
+    if (assignmentLabels[i] && assignmentLabels[i][0] != null) label = yarnText_(assignmentLabels[i][0]);
+    if (!label) label = 'Retorcedora ' + (i + 1);
+    var key = label.toUpperCase();
+    var found = assignmentMap[key];
+    if (found) {
+      assignmentInputs.push([found[0] === undefined || found[0] === null ? '' : found[0], found[1] === undefined || found[1] === null ? '' : found[1], found[2] === undefined || found[2] === null ? '' : found[2]]);
+    } else {
+      // Fallback sequential if label not found and we have sorted list (preserve old behavior for dense fills)
+      // Try sequential position as fallback only when map miss and we have exactly 10 sequential entries
+      assignmentInputs.push(['', '', '']);
+    }
+  }
+  // If map was not matched by label (e.g., labels missing), fallback to sequential fill for dense case
+  var sequentialFallback = false;
+  var matchedByLabel = assignmentInputs.some(function (r) { return r[0] !== '' || r[1] !== '' || r[2] !== ''; });
+  if (!matchedByLabel && matchingAssignments.length > 0) {
+    sequentialFallback = true;
+    assignmentInputs = [];
+    for (var s = 0; s < 10; s++) assignmentInputs.push(['', '', '']);
+    for (var idx = 0; idx < matchingAssignments.length && idx < 10; idx++) {
+      var av2 = matchingAssignments[idx];
+      var cab2, tit2, fre2;
+      if (av2.length >= 14) { cab2 = av2[4]; tit2 = av2[5]; fre2 = av2[6]; } else { cab2 = av2[3]; tit2 = av2[4]; fre2 = av2[5]; }
+      assignmentInputs[idx] = [cab2 === null || cab2 === undefined ? '' : cab2, tit2 === null || tit2 === undefined ? '' : tit2, fre2 === null || fre2 === undefined ? '' : fre2];
+    }
+  }
+  try {
+    settings.getRange('C33:E42').setValues(assignmentInputs);
+  } catch (e) {
+    // Fallback: per-row write if bulk fails
+    for (var r = 0; r < assignmentInputs.length; r++) {
+      try { settings.getRange('C' + (33 + r) + ':E' + (33 + r)).setValues([assignmentInputs[r]]); } catch (ignore2) {}
+    }
   }
 
-  // Build weighing form matrix B50:H157 (7 cols)
-  var weighingMatrix = [];
-  for (var j = 0; j < weighingHeight; j++) weighingMatrix.push(new Array(weighingWidth).fill(''));
+  // Weighings: only E:H for data rows, skipping header rows (RETORCEDORA blocks)
+  var wp;
+  try { wp = yarnParseRange_(weighingRangeA1); } catch (e) { wp = { r1: 50, c1: 2, r2: 157, c2: 8 }; }
+  var weighFullValues = [];
+  try { weighFullValues = settings.getRange(weighingRangeA1).getValues(); } catch (e) { weighFullValues = []; }
+
+  // Sort weighings for stable sequential hydration
   matchingWeighings.sort(function (a, b) {
     var ka = (a.length >= 16 ? yarnText_(a[3]) + '|' + a[4] + '|' + yarnText_(a[5]) : yarnText_(a[2]) + '|' + a[3] + '|' + yarnText_(a[4]));
     var kb = (b.length >= 16 ? yarnText_(b[3]) + '|' + b[4] + '|' + yarnText_(b[5]) : yarnText_(b[2]) + '|' + b[3] + '|' + yarnText_(b[4]));
     return ka.localeCompare(kb);
   });
-  // Map weighings into rows sequentially (form rows are sequential PK slots)
-  for (var wIdx = 0; wIdx < matchingWeighings.length && wIdx < weighingHeight; wIdx++) {
-    var wv = matchingWeighings[wIdx];
-    var wMachine, wDischarge, wSide, wGross, wUsos, wCone, wTacho;
+
+  // Build list of E:H values for weighings in sorted order
+  var weighingInputs = [];
+  for (var w = 0; w < matchingWeighings.length; w++) {
+    var wv = matchingWeighings[w];
+    var wGross, wUsos, wCone, wTacho;
     if (wv.length >= 16) {
-      wMachine = wv[3]; wDischarge = wv[4]; wSide = wv[5]; wGross = wv[7]; wUsos = wv[8]; wCone = wv[9]; wTacho = wv[10];
+      wGross = wv[7]; wUsos = wv[8]; wCone = wv[9]; wTacho = wv[10];
     } else {
-      wMachine = wv[2]; wDischarge = wv[3]; wSide = wv[4]; wGross = wv[6]; wUsos = wv[7]; wCone = wv[8]; wTacho = wv[9];
+      wGross = wv[6]; wUsos = wv[7]; wCone = wv[8]; wTacho = wv[9];
     }
-    weighingMatrix[wIdx] = [wMachine, wDischarge, wSide, wGross, wUsos, wCone, wTacho];
+    weighingInputs.push([
+      wGross === null || wGross === undefined ? '' : wGross,
+      wUsos === null || wUsos === undefined ? '' : wUsos,
+      wCone === null || wCone === undefined ? '' : wCone,
+      wTacho === null || wTacho === undefined ? '' : wTacho
+    ]);
   }
 
-  settings.getRange(assignmentRangeA1).setValues(assignmentMatrix);
-  settings.getRange(weighingRangeA1).setValues(weighingMatrix);
+  // Clear all data-row E:H first to ensure empty slots are blank (preserve headers)
+  for (var i = 0; i < weighFullValues.length; i++) {
+    if (yarnIsWeighingHeaderRow_(weighFullValues[i])) continue;
+    if (!yarnIsWeighingDataRow_(weighFullValues[i])) continue;
+    var clearRow = wp.r1 + i;
+    try { settings.getRange('E' + clearRow + ':H' + clearRow).clearContent(); } catch (ignore3) {}
+  }
+
+  // Sequential write skipping header rows
+  var pointer = 0;
+  for (var wIdx = 0; wIdx < weighingInputs.length; wIdx++) {
+    while (pointer < weighFullValues.length && (yarnIsWeighingHeaderRow_(weighFullValues[pointer]) || !yarnIsWeighingDataRow_(weighFullValues[pointer]))) {
+      pointer++;
+    }
+    if (pointer >= weighFullValues.length) break;
+    var sheetRow = wp.r1 + pointer;
+    try { settings.getRange('E' + sheetRow + ':H' + sheetRow).setValues([weighingInputs[wIdx]]); } catch (ignore4) {}
+    pointer++;
+  }
+
   SpreadsheetApp.flush();
   try { spreadsheet.toast('Turno cargado: ' + dateKey + ' ' + turnoKey, 'Yarn', 3); } catch (ignore) {}
 }
@@ -227,13 +291,76 @@ function yarnHydrateSettingsForm_(ss, date, turno) {
 function yarnClearSettingsForm_(settings) {
   var sheet = settings || yarnGetSettingsSheet_(SpreadsheetApp.getActiveSpreadsheet());
   if (!sheet) return;
-  var ap = yarnParseRange_(YARN_SETTINGS_CONFIG.RANGES.ASSIGNMENTS);
-  var wp = yarnParseRange_(YARN_SETTINGS_CONFIG.RANGES.WEIGHINGS);
-  var aH = ap.r2 - ap.r1 + 1; var aW = ap.c2 - ap.c1 + 1;
-  var wH = wp.r2 - wp.r1 + 1; var wW = wp.c2 - wp.c1 + 1;
-  var emptyA = []; for (var i = 0; i < aH; i++) emptyA.push(new Array(aW).fill(''));
-  var emptyW = []; for (var j = 0; j < wH; j++) emptyW.push(new Array(wW).fill(''));
-  sheet.getRange(YARN_SETTINGS_CONFIG.RANGES.ASSIGNMENTS).setValues(emptyA);
-  sheet.getRange(YARN_SETTINGS_CONFIG.RANGES.WEIGHINGS).setValues(emptyW);
+  // Assignments: only C33:E42 (cabos/titulo/frentes) — preserve B labels and F:H formulas (F33=SI.ERROR(E33*BUSCARV...), G33, H33)
+  try {
+    sheet.getRange('C33:E42').clearContent();
+  } catch (e) {
+    try {
+      var emptyA = [];
+      for (var i = 0; i < 10; i++) emptyA.push(['', '', '']);
+      sheet.getRange('C33:E42').setValues(emptyA);
+    } catch (ignore) {}
+  }
+  // Weighings: only E:H for data rows, skipping header rows (RETORCEDORA headers and column headers)
+  var weighingRangeA1 = YARN_SETTINGS_CONFIG.RANGES.WEIGHINGS; // B50:H157
+  var wp;
+  try { wp = yarnParseRange_(weighingRangeA1); } catch (e) { wp = { r1: 50, c1: 2, r2: 157, c2: 8 }; }
+  var fullValues = [];
+  try { fullValues = sheet.getRange(weighingRangeA1).getValues(); } catch (e) { fullValues = []; }
+  for (var i = 0; i < fullValues.length; i++) {
+    var row = fullValues[i];
+    if (yarnIsWeighingHeaderRow_(row)) continue;
+    if (!yarnIsWeighingDataRow_(row)) continue;
+    var sheetRow = wp.r1 + i;
+    try { sheet.getRange('E' + sheetRow + ':H' + sheetRow).clearContent(); } catch (ignore2) {}
+  }
   SpreadsheetApp.flush();
+}
+
+function yarnIsWeighingDataRow_(row) {
+  if (!row) return false;
+  var txt = (typeof yarnText_ === 'function') ? yarnText_ : function (v) { return v == null ? '' : String(v).trim(); };
+  var optNum = (typeof yarnOptionalNumber_ === 'function') ? yarnOptionalNumber_ : function (v) {
+    if (v == null || String(v).trim() === '') return null;
+    var n = Number(v);
+    return isFinite(n) ? n : false;
+  };
+  var b = txt(row[0]);
+  var cVal = row[1];
+  var d = txt(row[2]);
+  // New layout: B=machine, C=discharge 1..4, D=side A/B
+  var cNum = optNum(cVal);
+  var dU = d.toUpperCase();
+  var isSideNew = (dU === 'A' || dU === 'B' || dU === 'LADO A' || dU === 'LADO B');
+  if (b && cNum !== null && cNum !== false && cNum >= 1 && cNum <= 4 && Math.floor(cNum) === cNum && isSideNew) {
+    return true;
+  }
+  // Old layout fallback: B=discharge 1..4, C=side A/B
+  var bNum = optNum(row[0]);
+  var cText = txt(cVal);
+  var cU = cText.toUpperCase();
+  var isSideOld = (cU === 'A' || cU === 'B' || cU === 'LADO A' || cU === 'LADO B');
+  if (bNum !== null && bNum !== false && bNum >= 1 && bNum <= 4 && Math.floor(bNum) === bNum && isSideOld) {
+    return true;
+  }
+  return false;
+}
+
+function yarnIsWeighingHeaderRow_(row) {
+  if (!row) return true;
+  // Header rows are those that are not data rows but contain header-like text
+  if (yarnIsWeighingDataRow_(row)) return false;
+  var txt = (typeof yarnText_ === 'function') ? yarnText_ : function (v) { return v == null ? '' : String(v).trim(); };
+  var b = txt(row[0]).toUpperCase();
+  var c = txt(row[1]).toUpperCase();
+  var d = txt(row[2]).toUpperCase();
+  var e = txt(row[3]).toUpperCase();
+  if (b.indexOf('RETORCEDORA') !== -1) return true;
+  if (b.indexOf('DESCARGA') !== -1) return true;
+  if (c === 'LADO' || d === 'LADO' || e.indexOf('PESO BRUTO') !== -1) return true;
+  if (c.indexOf('LADO') !== -1 && !yarnIsWeighingDataRow_(row)) return true;
+  if (e.indexOf('PESO') !== -1 && e.indexOf('BRUTO') !== -1) return true;
+  if (b === 'DESCARGA #' || b === 'DESCARGA') return true;
+  // Any non-data row is treated as header to be skipped (safer to preserve)
+  return true;
 }
