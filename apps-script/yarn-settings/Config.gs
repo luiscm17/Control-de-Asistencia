@@ -18,8 +18,8 @@ const YARN_SETTINGS_CONFIG = Object.freeze({
     TITLE_DROPDOWN: 'D33:D42',
     ASSIGNMENTS: 'B33:H42',
     WEIGHINGS: 'B50:H157',
-    SAVE_CHECKBOX: 'K2',
-    SAVE_LABEL: 'L2'
+    SAVE_CHECKBOX: 'I8',
+    SAVE_LABEL: 'J8'
   }),
   TURNO_VALUES: Object.freeze(['Día', 'Tarde', 'Noche']),
   LIMITS: Object.freeze({
