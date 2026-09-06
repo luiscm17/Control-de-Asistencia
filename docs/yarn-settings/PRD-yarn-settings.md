@@ -47,7 +47,7 @@ Production for the twisting area is planned per machine (`Retorcedora 1..10`) an
 | `DB_Descargas` | Weighings per `descarga/lado` per retorcedora per day | Table | Target DB — empty |
 | `Errors` | Optional log | Table | Observability |
 
-> `Settings` contains `F4` (fecha) and derived `J4` (día), protected range `B10:C19` (`Título → Kg por 1 Frente` as reference for `BUSCARV`), input zones `C33:E42` (assignment) and `E50:H157` (10×8 weighings). Helper blocks `E10:H24` (calculator) and `L33:P42` (Resumen) are not part of `Settings` — they are derived views and are excluded from persistence.
+> `Settings` contains `F4` (fecha) and derived `J4` (día), protected range `B10:C19` (`Título → Kg por 1 Frente` as reference for `BUSCARV`), input zones `B33:H42` (assignment) and `E50:H157` (10×8 weighings). Helper blocks `E10:H24` (calculator) and `L33:P42` (Resumen) are not part of `Settings` — they are derived views and are excluded from persistence.
 
 ### 4.2 Template Mechanics
 
@@ -65,13 +65,13 @@ Production for the twisting area is planned per machine (`Retorcedora 1..10`) an
 
 Locale: `SI.ERROR`/`BUSCARV`/`DIASEM`/`ELEGIR`/`ESNUMERO` with `FALSO`. Use `valueRenderOption=FORMULA` when writing formulas.
 
-> Only `C33:E42` and `E50:H157` are persisted. Calculator and Resumen are excluded.
+> Only `B33:H42` and `E50:H157` are persisted. Calculator and Resumen are excluded.
 
 ## 5. Proposed Solution Overview
 
 ```
 Settings (1 sheet, date-driven) ──explicit Save──▶ Apps Script (validate, compute peso neto, LockService) ──▶ DB_Asignaciones (≤10 rows/day)
-   F4 fecha ─┬─▶ J4 día auto                       C33:E42 (plan)                                     ──▶ DB_Descargas (≤80 rows/day)
+   F4 fecha ─┬─▶ J4 día auto                       B33:H42 (plan)                                     ──▶ DB_Descargas (≤80 rows/day)
    B10:C19 ──┘  Standards reference                  E50:H157 (real)                                    ──▶ Errors (optional log)
 ```
 
@@ -96,7 +96,7 @@ Settings (1 sheet, date-driven) ──explicit Save──▶ Apps Script (valida
 | **FR-004** | Save is **upsert** per PK, not append: `DB_Asignaciones` PK `(fecha, retorcedora)`; `DB_Descargas` PK `(fecha, retorcedora, descarga_nro, lado)`. Re-saving the same `fecha` updates in place, does not duplicate. `creado` preserved on update, `actualizado` + `editado_por` refreshed. | Must |
 | **FR-005** | `peso_neto` is computed in Apps Script as `bruto − (usos × peso_cono + peso_tacho)` with null→0, rounded to 2 decimals, stored as value. Cell `I50` remains for UX but DB is source of truth. | Must |
 | **FR-006** | After save, toast `✅ Guardado: {fecha} — {N} asignaciones, {M} descargas ({kg} kg)`. On lock/execution failure, log to `Errors` and toast `❌ Error — use Re-sincronizar`. | Must |
-| **FR-007** | Optional post-save prompt `¿Limpiar Settings para próximo turno?` — `Yes` clears `C33:E42` + `E50:H157` (leaves `B10:C19`, `F4`); `No` keeps values. Never auto-clears. | Should |
+| **FR-007** | Optional post-save prompt `¿Limpiar Settings para próximo turno?` — `Yes` clears `B33:H42` + `E50:H157` (leaves `B10:C19`, `F4`); `No` keeps values. Never auto-clears. | Should |
 | **FR-008** | Menu `Yarn → Guardar Turno | Ver DB_Descargas | Ver DB_Asignaciones | Re-sincronizar Settings` | Should |
 
 ## 7. Non-Functional Requirements
@@ -132,7 +132,7 @@ Settings (1 sheet, date-driven) ──explicit Save──▶ Apps Script (valida
 | J | `creado` | DATETIME | `2026-09-03 08:10:00` | First insert |
 | K | `actualizado` | DATETIME | `2026-09-03 08:15:22` | Last change |
 | L | `editado_por` | STRING | `user@factory.bo` | `Session.getActiveUser().getEmail()` or `unknown` — last editor |
-| M | `rango_origen` | STRING | `Settings!C33:E33` | Traceability |
+| M | `rango_origen` | STRING | `Settings!C33:H33` | Traceability |
 
 > PK `(fecha, retorcedora)` → `findRow→update else append`. `prod_*` stored as value at save time. `creado` never overwritten; `actualizado`/`editado_por` refreshed on every upsert — same pattern as attendance `Registro` (`actualizado`+`editado_por`).
 
@@ -187,7 +187,7 @@ Settings (1 sheet, date-driven) ──explicit Save──▶ Apps Script (valida
 
 ```
 Pick Settings!F4=2026-09-03 → J4=JUEVES auto
- → fill C33:E42 (e.g. 6 of 10 machines), fill E50:H53 for R1 (2 weighings)
+ → fill B33:H42 (e.g. 6 of 10 machines), fill E50:H53 for R1 (2 weighings)
  → Yarn → Guardar Turno (or button)
   → validate F4, VLOOKUP, numeric bruto
   → Lock → upsert DB_Asignaciones (6 rows) + DB_Descargas (2 rows) with editado_por

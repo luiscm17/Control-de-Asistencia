@@ -7,6 +7,7 @@ function yarnCoreValidSnapshot_() {
   return Object.freeze({
     valid: true,
     date: Object.freeze({ year: 2026, month: 9, day: 3 }),
+    turno: 'Día',
     assignments: Object.freeze([Object.freeze({ machine: 'Retorcedora 1' })]),
     weighings: Object.freeze([Object.freeze({ grossWeight: 60 })]),
     errors: Object.freeze([])
@@ -17,9 +18,10 @@ function yarnCoreInvalidSnapshot_() {
   return Object.freeze({
     valid: false,
     date: null,
+    turno: null,
     assignments: Object.freeze([]),
     weighings: Object.freeze([]),
-    errors: Object.freeze([Object.freeze({ code: 'invalid_date', range: 'Settings!F4' })])
+    errors: Object.freeze([Object.freeze({ code: 'invalid_date', range: 'settings!F4' })])
   });
 }
 

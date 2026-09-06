@@ -37,18 +37,18 @@ function yarnBuildPersistencePlan_(snapshot, persistedState, audit) {
   const weighingDeletes = [];
 
   (snapshot.assignments || []).forEach(function (assignment) {
-    const key = yarnAssignmentKey_(snapshot.date, assignment.machine);
+    const key = yarnAssignmentKey_(snapshot.date, snapshot.turno, assignment.machine);
     const existing = assignmentIndex[key];
     assignmentUpserts.push(Object.freeze({
       key: key,
       rowNumber: existing ? existing.rowNumber : null,
-      row: yarnAssignmentRow_(snapshot.date, assignment, existing ? existing.values[9] : timestamp,
+      row: yarnAssignmentRow_(snapshot.date, snapshot.turno, assignment, existing ? yarnExtractAssignmentCreated_(existing.values) : timestamp,
         timestamp, editor)
     }));
   });
 
   (snapshot.weighings || []).forEach(function (weighing) {
-    const key = yarnWeighingKey_(snapshot.date, weighing.machine, weighing.discharge, weighing.side);
+    const key = yarnWeighingKey_(snapshot.date, snapshot.turno, weighing.machine, weighing.discharge, weighing.side);
     const existing = weighingIndex[key];
     if (weighing.grossWeight === null || weighing.grossWeight === undefined) {
       if (existing) weighingDeletes.push(Object.freeze({ key: key, rowNumber: existing.rowNumber, row: existing.values }));
@@ -57,7 +57,7 @@ function yarnBuildPersistencePlan_(snapshot, persistedState, audit) {
     weighingUpserts.push(Object.freeze({
       key: key,
       rowNumber: existing ? existing.rowNumber : null,
-      row: yarnWeighingRow_(snapshot.date, weighing, existing ? existing.values[11] : timestamp,
+      row: yarnWeighingRow_(snapshot.date, snapshot.turno, weighing, existing ? yarnExtractWeighingCreated_(existing.values) : timestamp,
         timestamp, editor)
     }));
   });
@@ -69,7 +69,7 @@ function yarnBuildPersistencePlan_(snapshot, persistedState, audit) {
     assignmentCount: assignmentUpserts.length,
     weighingCount: weighingUpserts.length,
     netKilograms: yarnRound2_(weighingUpserts.reduce(function (total, mutation) {
-      return total + mutation.row[10];
+      return total + mutation.row[11];
     }, 0))
   });
 }
@@ -93,49 +93,77 @@ function yarnIndexPersistedRows_(rows, keyForRow) {
   }, {});
 }
 
-function yarnAssignmentRow_(date, assignment, created, timestamp, editor) {
+function yarnAssignmentRow_(date, turno, assignment, created, timestamp, editor) {
   const dateKey = yarnDateKey_(date);
+  var safeTurno = turno || '';
   return [
-    dateKey + '-' + assignment.machine, yarnDateValue_(date), assignment.machine, assignment.cabos,
+    dateKey + '-' + safeTurno + '-' + assignment.machine, yarnDateValue_(date), safeTurno, assignment.machine, assignment.cabos,
     assignment.title, assignment.fronts, assignment.productionDay, assignment.productionShift,
-    assignment.lotsDay, created, timestamp, editor, assignment.sourceRange
+    assignment.lotesDay, created, timestamp, editor, assignment.sourceRange
   ];
 }
 
-function yarnWeighingRow_(date, weighing, created, timestamp, editor) {
+function yarnWeighingRow_(date, turno, weighing, created, timestamp, editor) {
   const dateKey = yarnDateKey_(date);
+  var safeTurno = turno || '';
   const netWeight = yarnRound2_(Number(weighing.grossWeight) -
     (Number(weighing.uses || 0) * Number(weighing.coneWeight || 0) + Number(weighing.bucketWeight || 0)));
   return [
-    dateKey + '-' + weighing.machine + '-' + weighing.discharge + '-' + weighing.side,
-    yarnDateValue_(date), weighing.machine, weighing.discharge, weighing.side, weighing.title,
+    dateKey + '-' + safeTurno + '-' + weighing.machine + '-' + weighing.discharge + '-' + weighing.side,
+    yarnDateValue_(date), safeTurno, weighing.machine, weighing.discharge, weighing.side, weighing.title,
     weighing.grossWeight, weighing.uses || 0, weighing.coneWeight || 0, weighing.bucketWeight || 0,
     netWeight, created, timestamp, editor, weighing.sourceRange
   ];
 }
 
-function yarnAssignmentKey_(date, machine) {
-  return yarnDateKey_(date) + '|' + machine;
+function yarnAssignmentKey_(date, turno, machine) {
+  return yarnDateKey_(date) + '|' + (turno || '') + '|' + machine;
 }
 
-function yarnWeighingKey_(date, machine, discharge, side) {
-  return yarnDateKey_(date) + '|' + machine + '|' + discharge + '|' + side;
+function yarnWeighingKey_(date, turno, machine, discharge, side) {
+  return yarnDateKey_(date) + '|' + (turno || '') + '|' + machine + '|' + discharge + '|' + side;
 }
 
 function yarnAssignmentKeyFromRow_(row) {
-  return row && row[1] && row[2] ? yarnDateKey_(row[1]) + '|' + yarnText_(row[2]) : '';
+  if (!row || !row[1]) return '';
+  // New schema 14 cols: fecha at 1, turno at 2, machine at 3
+  // Old schema 13 cols: fecha at 1, machine at 2
+  if (row.length >= 14) {
+    return row[2] !== undefined && row[3] ? yarnDateKey_(row[1]) + '|' + yarnText_(row[2]) + '|' + yarnText_(row[3]) : '';
+  }
+  return row[2] ? yarnDateKey_(row[1]) + '|' + '' + '|' + yarnText_(row[2]) : '';
 }
 
 function yarnWeighingKeyFromRow_(row) {
-  return row && row[1] && row[2] && row[3] !== '' && row[4] ?
-    yarnDateKey_(row[1]) + '|' + yarnText_(row[2]) + '|' + row[3] + '|' + yarnText_(row[4]).toUpperCase() : '';
+  if (!row || !row[1]) return '';
+  // New schema 16 cols: fecha 1, turno 2, machine 3, discharge 4, side 5
+  // Old schema 15 cols: fecha 1, machine 2, discharge 3, side 4
+  if (row.length >= 16) {
+    return row[2] !== undefined && row[3] !== '' && row[4] !== '' && row[5] ?
+      yarnDateKey_(row[1]) + '|' + yarnText_(row[2]) + '|' + yarnText_(row[3]) + '|' + row[4] + '|' + yarnText_(row[5]).toUpperCase() : '';
+  }
+  return row[2] && row[3] !== '' && row[4] ?
+    yarnDateKey_(row[1]) + '|' + '' + '|' + yarnText_(row[2]) + '|' + row[3] + '|' + yarnText_(row[4]).toUpperCase() : '';
+}
+
+function yarnExtractAssignmentCreated_(values) {
+  if (!values) return '';
+  if (values.length >= 14) return values[10];
+  return values[9];
+}
+
+function yarnExtractWeighingCreated_(values) {
+  if (!values) return '';
+  if (values.length >= 16) return values[12];
+  return values[11];
 }
 
 function yarnDateKey_(date) {
   if (date && typeof date.year === 'number') {
     return date.year + '-' + yarnPad2_(date.month) + '-' + yarnPad2_(date.day);
   }
-  if (!(date instanceof Date) || isNaN(date.getTime())) return '';
+  var isDate = date && typeof date.getTime === 'function' && Object.prototype.toString.call(date) === '[object Date]';
+  if (!isDate || isNaN(date.getTime())) return '';
   if (typeof Utilities !== 'undefined' && Utilities.formatDate) {
     return Utilities.formatDate(date, YARN_SETTINGS_CONFIG.TIMEZONE, 'yyyy-MM-dd');
   }
@@ -207,7 +235,7 @@ function yarnCompensatePersistence_(receipt) {
     yarnRestoreDeletedRows_(receipt.weighingSheet, receipt.weighingDeletes);
     return true;
   } catch (error) {
-    yarnLogError_('persistence.rollback', 'rollback_failure', error.message, 'DB_Asignaciones/DB_Descargas');
+    yarnLogError_('persistence.rollback', 'rollback_failure', error.message, YARN_SETTINGS_CONFIG.SHEETS.ASSIGNMENTS + '/' + YARN_SETTINGS_CONFIG.SHEETS.WEIGHINGS);
     return false;
   }
 }

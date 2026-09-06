@@ -6,13 +6,14 @@
 const YARN_SETTINGS_CONFIG = Object.freeze({
   TIMEZONE: 'America/La_Paz',
   SHEETS: Object.freeze({
-    SETTINGS: 'Settings',
-    ASSIGNMENTS: 'DB_Asignaciones',
-    WEIGHINGS: 'DB_Descargas',
-    ERRORS: 'Errors'
+    SETTINGS: 'settings',
+    ASSIGNMENTS: 'db_asignaciones',
+    WEIGHINGS: 'db_descargas',
+    ERRORS: 'errors'
   }),
   RANGES: Object.freeze({
     DATE: 'F4',
+    TURNO: 'F5',
     STANDARDS: 'B10:C19',
     TITLE_DROPDOWN: 'D33:D42',
     ASSIGNMENTS: 'B33:H42',
@@ -20,18 +21,19 @@ const YARN_SETTINGS_CONFIG = Object.freeze({
     SAVE_CHECKBOX: 'K2',
     SAVE_LABEL: 'L2'
   }),
+  TURNO_VALUES: Object.freeze(['Día', 'Tarde', 'Noche']),
   LIMITS: Object.freeze({
     ASSIGNMENTS_PER_DAY: 10,
     WEIGHINGS_PER_DAY: 80,
     DISCHARGES_PER_MACHINE: 4
   }),
   ASSIGNMENT_HEADERS: Object.freeze([
-    'id', 'fecha', 'retorcedora', 'cabos', 'titulo_asignado',
+    'id', 'fecha', 'turno', 'retorcedora', 'cabos', 'titulo_asignado',
     'frentes_asignados', 'prod_dia', 'prod_turno', 'lotes_dia',
     'creado', 'actualizado', 'editado_por', 'rango_origen'
   ]),
   WEIGHING_HEADERS: Object.freeze([
-    'id', 'fecha', 'retorcedora', 'descarga_nro', 'lado', 'titulo',
+    'id', 'fecha', 'turno', 'retorcedora', 'descarga_nro', 'lado', 'titulo',
     'peso_bruto', 'usos', 'peso_cono', 'peso_tacho', 'peso_neto',
     'creado', 'actualizado', 'editado_por', 'rango_origen'
   ]),
@@ -40,6 +42,7 @@ const YARN_SETTINGS_CONFIG = Object.freeze({
   ]),
   ERRORS: Object.freeze({
     INVALID_DATE: 'invalid_date',
+    INVALID_TURNO: 'invalid_turno',
     UNKNOWN_TITLE: 'unknown_title',
     EMPTY_FORM: 'empty_form',
     INCOMPLETE_ASSIGNMENT: 'incomplete_assignment',
@@ -51,6 +54,46 @@ const YARN_SETTINGS_CONFIG = Object.freeze({
     TOO_MANY_WEIGHINGS: 'too_many_weighings'
   })
 });
+
+function yarnGetSettingsSheet_(ss) {
+  var spreadsheet = ss || SpreadsheetApp.getActiveSpreadsheet();
+  return spreadsheet.getSheetByName(YARN_SETTINGS_CONFIG.SHEETS.SETTINGS);
+}
+
+function yarnSettingsPrefixForSheet_(sheet) {
+  if (sheet && typeof sheet.getName === 'function') return sheet.getName() + '!';
+  return YARN_SETTINGS_CONFIG.SHEETS.SETTINGS + '!';
+}
+
+function yarnSettingsPrefix_(ss) {
+  var spreadsheet = ss || SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = yarnGetSettingsSheet_(spreadsheet);
+  return sheet ? yarnSettingsPrefixForSheet_(sheet) : YARN_SETTINGS_CONFIG.SHEETS.SETTINGS + '!';
+}
+
+function yarnParseA1_(a1) {
+  var raw = String(a1).trim().toUpperCase();
+  var match = raw.match(/^([A-Z]+)(\d+)$/);
+  if (!match) throw new Error('Invalid A1: ' + a1);
+  var letters = match[1];
+  var col = 0;
+  for (var i = 0; i < letters.length; i++) {
+    col = col * 26 + (letters.charCodeAt(i) - 64);
+  }
+  return { row: parseInt(match[2], 10), col: col };
+}
+
+function yarnParseRange_(a1) {
+  var raw = String(a1).trim();
+  var parts = raw.split(':');
+  if (parts.length === 1) {
+    var single = yarnParseA1_(parts[0]);
+    return { r1: single.row, c1: single.col, r2: single.row, c2: single.col };
+  }
+  var start = yarnParseA1_(parts[0]);
+  var end = yarnParseA1_(parts[1]);
+  return { r1: start.row, c1: start.col, r2: end.row, c2: end.col };
+}
 
 function yarnEnsureSettingsSchema() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();

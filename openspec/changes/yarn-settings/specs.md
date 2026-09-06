@@ -8,7 +8,7 @@ Persist one explicitly saved `Settings` shift as auditable assignment and weighi
 
 ### Requirement: Settings Date, Standards, and Persistence Boundary
 
-`Settings!F4` MUST remain a Sheets-validated `DATE` displayed as `dd/MM/yyyy`; `J4` SHALL remain derived, and changing the date MUST NOT clear input grids. `guardarTurno()` MUST reject a missing or invalid date, an unknown populated title from `B10:C19`, or a form with neither a complete assignment nor numeric gross weight. It MUST persist only `C33:E42` assignments and `E50:H157` weighings, never calculator `E10:H24` or summary `L33:P42`.
+`Settings!F4` MUST remain a Sheets-validated `DATE` displayed as `dd/MM/yyyy`; `J4` SHALL remain derived, and changing the date MUST NOT clear input grids. `guardarTurno()` MUST reject a missing or invalid date, an unknown populated title from `B10:C19`, or a form with neither a complete assignment nor numeric gross weight. It MUST persist only `B33:H42` assignments and `E50:H157` weighings, never calculator `E10:H24` or summary `L33:P42`.
 
 #### Scenario: Valid dated form
 - GIVEN `F4` contains a valid date and a title exists in Standards

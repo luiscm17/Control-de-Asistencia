@@ -22,7 +22,7 @@ The installable handler recognizes only `Settings!K2` becoming `TRUE`, calls pub
 
 `guardarTurno()` validates the complete form before taking a document lock. It retries a 5-second lock acquisition once, loads current DB state, applies one mutation plan, flushes, and shows a success toast containing the date, assignment count, weighing count, and net kilograms.
 
-Input is limited to `Settings!C33:E42` and `Settings!E50:H157`; calculator and summary ranges are never persisted. Dates display as `dd/MM/yyyy`; audit timestamps use `America/La_Paz`.
+Input is limited to `Settings!B33:H42` and `Settings!E50:H157` (ingested as `B33:H42`/`B50:H157` via Config `RANGES.ASSIGNMENTS`/`WEIGHINGS`); calculator and summary ranges are never persisted. Dates display as `dd/MM/yyyy`; audit timestamps use `America/La_Paz`.
 
 | Sheet | Primary key | Frozen columns |
 |---|---|---|

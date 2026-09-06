@@ -10,11 +10,11 @@ function guardarTurno() {
   try {
     snapshot = services.readSnapshot();
   } catch (error) {
-    return yarnCoreFailure_(services, 'read_failed', error.message, 'Settings');
+    return yarnCoreFailure_(services, 'read_failed', error.message, YARN_SETTINGS_CONFIG.SHEETS.SETTINGS);
   }
 
   if (!snapshot.valid) {
-    const validationError = snapshot.errors[0] || { code: 'invalid_form', range: 'Settings' };
+    const validationError = snapshot.errors[0] || { code: 'invalid_form', range: YARN_SETTINGS_CONFIG.SHEETS.SETTINGS };
     return yarnCoreFailure_(services, validationError.code, validationError.code, validationError.range);
   }
 
@@ -27,20 +27,20 @@ function guardarTurno() {
       services.sleep(1000);
       locked = lock.tryLock(5000);
     }
-    if (!locked) return yarnCoreFailure_(services, 'lock_timeout', 'Document lock unavailable.', 'Settings');
+    if (!locked) return yarnCoreFailure_(services, 'lock_timeout', 'Document lock unavailable.', YARN_SETTINGS_CONFIG.SHEETS.SETTINGS);
 
     const state = services.loadState();
     const plan = services.buildPlan(snapshot, state);
     services.applyPlan(state, plan);
     services.flush();
     services.toast(
-      '✅ Guardado: ' + yarnDateKey_(snapshot.date) + ' — ' + plan.assignmentCount +
+      '✅ Guardado: ' + yarnDateKey_(snapshot.date) + ' ' + (snapshot.turno || '') + ' — ' + plan.assignmentCount +
         ' asignaciones, ' + plan.weighingCount + ' descargas (' + plan.netKilograms + ' kg)',
       'Yarn'
     );
     return Object.freeze({ success: true, code: 'saved', plan: plan });
   } catch (error) {
-    return yarnCoreFailure_(services, 'save_failed', error.message, 'DB_Asignaciones/DB_Descargas');
+    return yarnCoreFailure_(services, 'save_failed', error.message, YARN_SETTINGS_CONFIG.SHEETS.ASSIGNMENTS + '/' + YARN_SETTINGS_CONFIG.SHEETS.WEIGHINGS);
   } finally {
     if (locked) lock.releaseLock();
   }
@@ -55,6 +55,7 @@ function yarnCoreFailure_(services, code, reason, range) {
 function yarnCoreFailureMessage_(code) {
   const messages = {
     invalid_date: 'Seleccioná fecha válida',
+    invalid_turno: 'Seleccioná turno válido (Día/Tarde/Noche)',
     unknown_title: 'Título no existe',
     empty_form: 'Completá una asignación o descarga',
     lock_timeout: 'Guardado ocupado'

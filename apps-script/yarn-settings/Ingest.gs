@@ -1,26 +1,44 @@
 /**
  * Ingest.gs — Batch extraction and validation for the Yarn Settings shift form.
- * Only Settings!F4, B10:C19, B33:H42, and B50:H157 are read by this module.
+ * Only Settings!F4, Settings!F5, B10:C19, B33:H42, and B50:H157 are read by this module.
  */
 
 function yarnReadShiftSnapshot_(spreadsheet) {
   const ss = spreadsheet || SpreadsheetApp.getActiveSpreadsheet();
-  const settings = ss.getSheetByName(YARN_SETTINGS_CONFIG.SHEETS.SETTINGS);
+  const settings = (typeof yarnGetSettingsSheet_ === 'function')
+    ? yarnGetSettingsSheet_(ss)
+    : ss.getSheetByName(YARN_SETTINGS_CONFIG.SHEETS.SETTINGS);
   if (!settings) throw new Error('Settings sheet is not available.');
+  var prefix = (typeof yarnSettingsPrefixForSheet_ === 'function')
+    ? yarnSettingsPrefixForSheet_(settings)
+    : settings.getName() + '!';
 
   return yarnBuildShiftSnapshot_({
     date: settings.getRange(YARN_SETTINGS_CONFIG.RANGES.DATE).getValue(),
+    turno: settings.getRange(YARN_SETTINGS_CONFIG.RANGES.TURNO).getValue(),
     standards: settings.getRange(YARN_SETTINGS_CONFIG.RANGES.STANDARDS).getValues(),
     assignments: settings.getRange(YARN_SETTINGS_CONFIG.RANGES.ASSIGNMENTS).getValues(),
-    weighings: settings.getRange(YARN_SETTINGS_CONFIG.RANGES.WEIGHINGS).getValues()
+    weighings: settings.getRange(YARN_SETTINGS_CONFIG.RANGES.WEIGHINGS).getValues(),
+    settingsPrefix: prefix
   });
 }
 
 function yarnBuildShiftSnapshot_(input) {
   const source = input || {};
   const errors = [];
+  var prefix = source.settingsPrefix || YARN_SETTINGS_CONFIG.SHEETS.SETTINGS + '!';
+  var ap = (typeof yarnParseRange_ === 'function')
+    ? yarnParseRange_(YARN_SETTINGS_CONFIG.RANGES.ASSIGNMENTS)
+    : { r1: 33, c1: 2, r2: 42, c2: 8 };
+  var wp = (typeof yarnParseRange_ === 'function')
+    ? yarnParseRange_(YARN_SETTINGS_CONFIG.RANGES.WEIGHINGS)
+    : { r1: 50, c1: 2, r2: 157, c2: 8 };
+  var weighingsRangeA1 = prefix + YARN_SETTINGS_CONFIG.RANGES.WEIGHINGS;
   const date = yarnNormalizeDate_(source.date);
-  if (!date) yarnAddSnapshotError_(errors, YARN_SETTINGS_CONFIG.ERRORS.INVALID_DATE, 'Settings!F4');
+  if (!date) yarnAddSnapshotError_(errors, YARN_SETTINGS_CONFIG.ERRORS.INVALID_DATE, prefix + YARN_SETTINGS_CONFIG.RANGES.DATE);
+
+  const turno = yarnNormalizeTurno_(source.turno);
+  if (!turno) yarnAddSnapshotError_(errors, YARN_SETTINGS_CONFIG.ERRORS.INVALID_TURNO, prefix + YARN_SETTINGS_CONFIG.RANGES.TURNO);
 
   const standardTitles = yarnStandardTitles_(source.standards || []);
   const assignments = [];
@@ -28,7 +46,7 @@ function yarnBuildShiftSnapshot_(input) {
   const assignmentRows = source.assignments || [];
 
   assignmentRows.forEach(function (row, index) {
-    const rowNumber = 33 + index;
+    const rowNumber = ap.r1 + index;
     const machine = yarnText_(row[0]);
     const cabos = yarnOptionalNumber_(row[1]);
     const title = yarnText_(row[2]);
@@ -36,17 +54,17 @@ function yarnBuildShiftSnapshot_(input) {
     const populated = yarnHasValue_(row[1]) || yarnHasValue_(row[2]) || yarnHasValue_(row[3]);
 
     if (title && !standardTitles[title]) {
-      yarnAddSnapshotError_(errors, YARN_SETTINGS_CONFIG.ERRORS.UNKNOWN_TITLE, 'Settings!D' + rowNumber);
+      yarnAddSnapshotError_(errors, YARN_SETTINGS_CONFIG.ERRORS.UNKNOWN_TITLE, prefix + 'D' + rowNumber);
     }
     if (!populated) return;
     if (!machine || !title || cabos === null || fronts === null) {
       yarnAddSnapshotError_(errors, YARN_SETTINGS_CONFIG.ERRORS.INCOMPLETE_ASSIGNMENT,
-        'Settings!C' + rowNumber + ':E' + rowNumber);
+        prefix + 'C' + rowNumber + ':E' + rowNumber);
       return;
     }
     if (cabos === false || fronts === false) {
       yarnAddSnapshotError_(errors, YARN_SETTINGS_CONFIG.ERRORS.INVALID_ASSIGNMENT_NUMBER,
-        'Settings!C' + rowNumber + ':E' + rowNumber);
+        prefix + 'C' + rowNumber + ':E' + rowNumber);
       return;
     }
     if (!standardTitles[title]) return;
@@ -59,7 +77,7 @@ function yarnBuildShiftSnapshot_(input) {
       productionDay: yarnOptionalNumberOrNull_(row[4]),
       productionShift: yarnOptionalNumberOrNull_(row[5]),
       lotsDay: yarnOptionalNumberOrNull_(row[6]),
-      sourceRange: 'Settings!C' + rowNumber + ':H' + rowNumber
+      sourceRange: prefix + 'C' + rowNumber + ':H' + rowNumber
     });
     assignments.push(assignment);
     titleByMachine[machine] = title;
@@ -68,7 +86,7 @@ function yarnBuildShiftSnapshot_(input) {
   const weighings = [];
   const weighingRows = source.weighings || [];
   weighingRows.forEach(function (row, index) {
-    const rowNumber = 50 + index;
+    const rowNumber = wp.r1 + index;
     const machine = yarnText_(row[0]);
     const discharge = yarnOptionalNumber_(row[1]);
     const side = yarnText_(row[2]).toUpperCase();
@@ -88,17 +106,17 @@ function yarnBuildShiftSnapshot_(input) {
     }
     if (gross === false) {
       yarnAddSnapshotError_(errors, YARN_SETTINGS_CONFIG.ERRORS.INVALID_GROSS_WEIGHT,
-        'Settings!E' + rowNumber);
+        prefix + 'E' + rowNumber);
       return;
     }
     if (uses === false || coneWeight === false || bucketWeight === false) {
       yarnAddSnapshotError_(errors, YARN_SETTINGS_CONFIG.ERRORS.INVALID_TARE,
-        'Settings!F' + rowNumber + ':H' + rowNumber);
+        prefix + 'F' + rowNumber + ':H' + rowNumber);
       return;
     }
     if (hasGross && !titleByMachine[machine]) {
       yarnAddSnapshotError_(errors, YARN_SETTINGS_CONFIG.ERRORS.MISSING_WEIGHING_TITLE,
-        'Settings!E' + rowNumber);
+        prefix + 'E' + rowNumber);
       return;
     }
 
@@ -111,22 +129,23 @@ function yarnBuildShiftSnapshot_(input) {
       uses: uses === null ? 0 : uses,
       coneWeight: coneWeight === null ? 0 : coneWeight,
       bucketWeight: bucketWeight === null ? 0 : bucketWeight,
-      sourceRange: 'Settings!E' + rowNumber + ':H' + rowNumber
+      sourceRange: prefix + 'E' + rowNumber + ':H' + rowNumber
     }));
   });
 
   if (weighings.length > YARN_SETTINGS_CONFIG.LIMITS.WEIGHINGS_PER_DAY) {
-    yarnAddSnapshotError_(errors, YARN_SETTINGS_CONFIG.ERRORS.TOO_MANY_WEIGHINGS, 'Settings!B50:H157');
+    yarnAddSnapshotError_(errors, YARN_SETTINGS_CONFIG.ERRORS.TOO_MANY_WEIGHINGS, weighingsRangeA1);
   }
   if (assignments.length === 0 && !weighings.some(function (weighing) {
     return weighing.grossWeight !== null;
   })) {
-    yarnAddSnapshotError_(errors, YARN_SETTINGS_CONFIG.ERRORS.EMPTY_FORM, 'Settings');
+    yarnAddSnapshotError_(errors, YARN_SETTINGS_CONFIG.ERRORS.EMPTY_FORM, YARN_SETTINGS_CONFIG.SHEETS.SETTINGS);
   }
 
   return Object.freeze({
     valid: errors.length === 0,
     date: date,
+    turno: turno,
     assignments: Object.freeze(assignments),
     weighings: Object.freeze(weighings),
     errors: Object.freeze(errors)
@@ -134,12 +153,24 @@ function yarnBuildShiftSnapshot_(input) {
 }
 
 function yarnNormalizeDate_(value) {
-  if (!(value instanceof Date) || isNaN(value.getTime())) return null;
+  var isDate = value && typeof value.getTime === 'function' && Object.prototype.toString.call(value) === '[object Date]';
+  if (!isDate || isNaN(value.getTime())) return null;
   return Object.freeze({
     year: value.getFullYear(),
     month: value.getMonth() + 1,
     day: value.getDate()
   });
+}
+
+function yarnNormalizeTurno_(value) {
+  var raw = yarnText_(value);
+  if (!raw) return null;
+  var normalized = raw.toLowerCase().trim();
+  // Normalize accent-less 'dia' to 'día' canonical
+  if (normalized === 'dia' || normalized === 'día') return 'Día';
+  if (normalized === 'tarde') return 'Tarde';
+  if (normalized === 'noche') return 'Noche';
+  return null;
 }
 
 function yarnStandardTitles_(standards) {
