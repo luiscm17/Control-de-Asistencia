@@ -115,6 +115,33 @@ function conerasTestSnapshotValidationAndBatchSizes_() {
     'A complete fifteen-row batch must retain descarga numbers.');
 }
 
+function conerasTestDashboardQueries_() {
+  const totals = conerasBuildDashboardQuery_(
+    CONERAS_CONFIG.FORMULAS.DASHBOARD_TOTALS_SELECT,
+    CONERAS_CONFIG.FORMULAS.DASHBOARD_TOTALS_GROUP_BY,
+    false);
+  const daily = conerasBuildDashboardQuery_(
+    CONERAS_CONFIG.FORMULAS.DASHBOARD_DAILY_SELECT,
+    CONERAS_CONFIG.FORMULAS.DASHBOARD_DAILY_GROUP_BY,
+    true);
+  conerasAssert_(totals.indexOf('select F, sum(L) where B is not null') !== -1 &&
+    totals.indexOf('group by F') !== -1, 'Totals must group native QUERY results by title.');
+  conerasAssert_(totals.indexOf('SI($B3="Fecha";SI(ESNUMERO($B8)') !== -1 &&
+    totals.indexOf('" and B is null"') !== -1, 'Fecha must require a valid picker and otherwise spill empty.');
+  conerasAssert_(totals.indexOf('HOY()-6') !== -1 && totals.indexOf('FIN.MES(HOY();0)') !== -1,
+    'Semana and Mes must use rolling and calendar-month date ranges.');
+  conerasAssert_(totals.indexOf('SI($B4="Todos";""') !== -1 &&
+    totals.indexOf('SI($B5="Todos";""') !== -1 && totals.indexOf('SI($B6="Todos";""') !== -1,
+    'Todos must omit optional filter predicates.');
+  conerasAssert_(totals.indexOf("label F 'Título', sum(L) 'Peso Neto'") !== -1,
+    'Blank titles must remain grouped by the title column rather than excluded.');
+  conerasAssert_(daily.indexOf('select B, sum(L) where B is not null') !== -1 &&
+    daily.indexOf('SI($B3="Fecha";" and B is null";') !== -1,
+    'The daily chart source must be empty for Fecha and active for Semana or Mes.');
+  conerasAssert_(CONERAS_CONFIG.FORMULAS.META_REAL ===
+    '=SI(ESNUMERO(C4),C4*dashboard!B7,"")', 'Meta Real must remain a native formula.');
+}
+
 function conerasTestForm_(fecha, turno, maquina, supervisor, inputs, nets) {
   const valuesByRange = {};
   valuesByRange[CONERAS_CONFIG.RANGES.FECHA] = fecha;
@@ -146,7 +173,8 @@ function conerasTestHelpers_() {
     conerasTestPersistencePlan_,
     conerasTestBatchAndInputRules_,
     conerasTestDeleteGuardPlan_,
-    conerasTestSnapshotValidationAndBatchSizes_
+    conerasTestSnapshotValidationAndBatchSizes_,
+    conerasTestDashboardQueries_
   ];
   tests.forEach(function (test) { test(); });
   Logger.log('✅ ' + tests.length + ' Coneras tests passed.');

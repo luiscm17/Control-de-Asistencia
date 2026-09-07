@@ -27,7 +27,16 @@ const CONERAS_CONFIG = Object.freeze({
     SAVE_LABEL: 'J8',
     DB_HEADERS: 'A1:P1',
     ERRORS_HEADERS: 'A1:F1',
-    DASHBOARD_EFFICIENCY: 'B7'
+    DASHBOARD_EFFICIENCY: 'B7',
+    DASHBOARD_PERIODO: 'B3',
+    DASHBOARD_TURNO: 'B4',
+    DASHBOARD_MAQUINA: 'B5',
+    DASHBOARD_SUPERVISOR: 'B6',
+    DASHBOARD_FECHA: 'B8',
+    DASHBOARD_TOTALS: 'E7',
+    DASHBOARD_DAILY: 'K7',
+    DASHBOARD_TOTALS_CHART_RANGE: 'E7:F1000',
+    DASHBOARD_DAILY_CHART_RANGE: 'K7:L1000'
   }),
   LIMITS: Object.freeze({
     DESCARGAS: 15,
@@ -38,6 +47,9 @@ const CONERAS_CONFIG = Object.freeze({
   MAQUINA_VALUES: Object.freeze([
     'Autoconer 1', 'Autoconer 2', 'Autoconer 3', 'Conera 3', 'Conera 4'
   ]),
+  DASHBOARD: Object.freeze({
+    PERIODO_VALUES: ['Fecha', 'Semana', 'Mes']
+  }),
   DB_HEADERS: Object.freeze([
     'id', 'fecha', 'turno', 'maquina', 'descarga_nro', 'titulo', 'operador',
     'peso_bruto', 'usos', 'peso_canilla', 'peso_tacho', 'peso_neto',
@@ -57,7 +69,11 @@ const CONERAS_CONFIG = Object.freeze({
   FORMULAS: Object.freeze({
     NET_WEIGHT_FIRST: '=SI(ESNUMERO(D8),MAX(0,D8-(E8*F8)-G8),"")',
     TOTAL_NET_WEIGHT: '=SUMA(H8:H22)',
-    META_REAL: '=SI(ESNUMERO(C4),C4*dashboard!B7,"")'
+    META_REAL: '=SI(ESNUMERO(C4),C4*dashboard!B7,"")',
+    DASHBOARD_TOTALS_SELECT: 'select F, sum(L)',
+    DASHBOARD_TOTALS_GROUP_BY: 'F',
+    DASHBOARD_DAILY_SELECT: 'select B, sum(L)',
+    DASHBOARD_DAILY_GROUP_BY: 'B'
   }),
   UI: Object.freeze({
     SAVE_LABEL: '☑ GUARDAR TURNO',
@@ -114,4 +130,22 @@ function conerasFormulaCells_() {
     Object.freeze({ range: CONERAS_CONFIG.RANGES.TOTAL_NET_WEIGHT, formula: CONERAS_CONFIG.FORMULAS.TOTAL_NET_WEIGHT }),
     Object.freeze({ range: CONERAS_CONFIG.RANGES.NET_WEIGHT_FIRST, formula: CONERAS_CONFIG.FORMULAS.NET_WEIGHT_FIRST })
   ]);
+}
+
+function conerasBuildDashboardQuery_(selectClause, groupBy, emptyForFecha) {
+  const ranges = CONERAS_CONFIG.RANGES;
+  const temporalPredicate = emptyForFecha
+    ? 'SI($' + ranges.DASHBOARD_PERIODO + '="Fecha";" and B is null";'
+    : 'SI($' + ranges.DASHBOARD_PERIODO + '="Fecha";SI(ESNUMERO($' + ranges.DASHBOARD_FECHA + ');" and B = date \'"&TEXTO($' + ranges.DASHBOARD_FECHA + ';"yyyy-MM-dd")&"\'";" and B is null");';
+  const rollingPeriod = 'SI($' + ranges.DASHBOARD_PERIODO + '="Semana";" and B >= date \'"&TEXTO(HOY()-6;"yyyy-MM-dd")&"\' and B <= date \'"&TEXTO(HOY();"yyyy-MM-dd")&"\'";" and B >= date \'"&TEXTO(FECHA(AÑO(HOY());MES(HOY());1);"yyyy-MM-dd")&"\' and B <= date \'"&TEXTO(FIN.MES(HOY();0);"yyyy-MM-dd")&"\'")';
+  const filters = [
+    'SI($' + ranges.DASHBOARD_TURNO + '="Todos";"";" and C = \'"&SUSTITUIR($' + ranges.DASHBOARD_TURNO + ';"\'";"\'\'")&"\'")',
+    'SI($' + ranges.DASHBOARD_MAQUINA + '="Todos";"";" and D = \'"&SUSTITUIR($' + ranges.DASHBOARD_MAQUINA + ';"\'";"\'\'")&"\'")',
+    'SI($' + ranges.DASHBOARD_SUPERVISOR + '="Todos";"";" and M = \'"&SUSTITUIR($' + ranges.DASHBOARD_SUPERVISOR + ';"\'";"\'\'")&"\'")'
+  ].join('&');
+  const label = groupBy === 'F'
+    ? " label F 'Título', sum(L) 'Peso Neto'"
+    : " label B 'Fecha', sum(L) 'Peso Neto'";
+  return '=QUERY(db_coneras!A:P;"' + selectClause + ' where B is not null"&' +
+    temporalPredicate + rollingPeriod + '&' + filters + '&" group by ' + groupBy + label + '";1)';
 }
