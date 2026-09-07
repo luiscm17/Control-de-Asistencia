@@ -17,16 +17,16 @@ Add an isolated V8 Apps Script project under `apps-script/yarn-settings/`. The p
 ## Data Flow
 
 ```text
-Checkbox K2 (onEdit) / Yarn menu -> guardarTurno() -> readShiftSnapshot_()
+Checkbox I8 (Settings!I8 onEdit) / Yarn menu -> guardarTurno() -> readShiftSnapshot_()
   -> validateShiftSnapshot_() -> acquire lock (5s, sleep, 5s retry)
   -> load DB indexes -> plan assignment upserts + weighing upserts/deletes
   -> apply plan -> flush -> success toast
        | failure: compensate -> Errors + failure toast
 ```
 
-Checkbox is `Settings!K2` (or `K2:L2` merged) `☑ GUARDAR TURNO` via `dataValidation` checkbox (desktop+móvil); `onEdit` detects `K2==TRUE` → calls `guardarTurno()` → on success/failure sets `K2=FALSE` after ~1s to make it reusable. Menu `Yarn → Guardar Turno` remains for desktop power users. No drawing button.
+Checkbox is `Settings!I8` `☑ GUARDAR TURNO` via `dataValidation` checkbox (desktop+móvil); `onEdit` detects `Settings!I8==TRUE` → calls `guardarTurno()` → on success/failure sets `Settings!I8=FALSE` after ~1s to make it reusable. Menu `Yarn → Guardar Turno` remains for desktop power users. No drawing button.
 
-`Ingest.gs` batch-reads `F4`, Standards `B10:C19`, assignments `B33:H42`, and weighing metadata/input `B50:H157`. A row is a weighing slot only when its machine, discharge number, and side metadata form a valid visible PK; blank gross weight deletes that existing PK and otherwise creates nothing. Numeric gross/tare values are normalized with blank tare as zero; `peso_neto = round2(bruto - (usos * peso_cono + peso_tacho))`.
+`Ingest.gs` batch-reads `F4` (fecha), `F5` (turno), Standards `B10:C19`, assignments `B33:H42`, and weighing metadata/input `B50:H157`. A row is a weighing slot only when its machine, discharge number, and side metadata form a valid visible PK; blank gross weight deletes that existing PK and otherwise creates nothing. Numeric gross/tare values are normalized with blank tare as zero; `peso_neto = round2(bruto - (usos * peso_cono + peso_tacho))`.
 
 ## File Changes
 
@@ -43,8 +43,8 @@ Checkbox is `Settings!K2` (or `K2:L2` merged) `☑ GUARDAR TURNO` via `dataValid
 ## Interfaces / Contracts
 
 - Public: `guardarTurno(): void`; `onOpen(): void`; DB navigation and `menuResincronizarSettings()` handlers.
-- Assignment PK: `(fecha, retorcedora)`; columns A:M: `id, fecha, retorcedora, cabos, titulo_asignado, frentes_asignados, prod_dia, prod_turno, lotes_dia, creado, actualizado, editado_por, rango_origen`.
-- Weighing PK: `(fecha, retorcedora, descarga_nro, lado)`; columns A:O: `id, fecha, retorcedora, descarga_nro, lado, titulo, peso_bruto, usos, peso_cono, peso_tacho, peso_neto, creado, actualizado, editado_por, rango_origen`.
+- Assignment PK: `(fecha, turno, retorcedora)`; columns A:N (14 cols): `id, fecha, turno, retorcedora, cabos, titulo_asignado, frentes_asignados, prod_dia, prod_turno, lotes_dia, creado, actualizado, editado_por, rango_origen` — extends PRD v0.1.0 frozen A:M (13 cols) to include `turno`.
+- Weighing PK: `(fecha, turno, retorcedora, descarga_nro, lado)`; columns A:P (16 cols): `id, fecha, turno, retorcedora, descarga_nro, lado, titulo, peso_bruto, usos, peso_cono, peso_tacho, peso_neto, creado, actualizado, editado_por, rango_origen` — extends PRD v0.1.0 frozen A:O (15 cols) to include `turno`.
 - Dates remain Sheets `Date` values; IDs use a La Paz `yyyy-MM-dd` date key. Audit timestamps use `Utilities.formatDate(..., 'America/La_Paz', 'yyyy-MM-dd HH:mm:ss')`; editor falls back to `unknown`.
 - Sheet validation/formatting owns `F4`, numeric formats, and title dropdown. Script owns date/business checks, Standards existence/lookup, numeric gross/tare checks, locking, and persistence.
 
@@ -62,7 +62,7 @@ N/A — no routing, shell, subprocess, VCS/PR automation, executable-file classi
 
 ## Migration / Rollout
 
-No data migration required. Deploy the isolated Apps Script project to a workbook copy, verify exact frozen headers and protected Standards/formula cells, then create checkbox `Settings!K2` (or `K2:L2` merged) `☑ GUARDAR TURNO` with `onEdit` handler that triggers `guardarTurno()` and auto-unchecks after ~1s. Roll back by detaching the menu/checkbox deployment; retain DB rows for audit.
+No data migration required. Deploy the isolated Apps Script project to a workbook copy, verify exact frozen headers (14-col A:N for `DB_Asignaciones`, 16-col A:P for `DB_Descargas`) and protected Standards/formula cells, then create checkbox `Settings!I8` `☑ GUARDAR TURNO` with `onEdit` handler that triggers `guardarTurno()` and auto-unchecks `Settings!I8=FALSE` after ~1s. Roll back by detaching the menu/checkbox deployment; retain DB rows for audit.
 
 ## Open Questions
 

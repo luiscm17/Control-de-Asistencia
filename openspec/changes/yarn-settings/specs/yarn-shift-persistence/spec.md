@@ -22,7 +22,7 @@ Persist one explicitly saved `Settings` shift as auditable assignment and weighi
 
 ### Requirement: Explicit Save Entry Points and Serialization
 
-The system MUST expose `Yarn → Guardar Turno` (desktop) AND checkbox `Settings!K2` (or `K2:L2` merged) labeled `☑ GUARDAR TURNO` via `dataValidation` checkbox (desktop+móvil); both MUST invoke public `guardarTurno()`, and the checkbox handler MUST auto-clear `K2` to `FALSE` after ~1s on success or failure to make it reusable. No drawing button. A save MUST acquire the document lock for 5 seconds and retry once before failing; it MUST use `America/La_Paz` for audit timestamps.
+The system MUST expose `Yarn → Guardar Turno` (desktop) AND checkbox `Settings!I8` labeled `☑ GUARDAR TURNO` via `dataValidation` checkbox (desktop+móvil); both MUST invoke public `guardarTurno()`, and the checkbox handler MUST auto-clear `Settings!I8` to `FALSE` after ~1s on success or failure to make it reusable. No drawing button. A save MUST acquire the document lock for 5 seconds and retry once before failing; it MUST use `America/La_Paz` for audit timestamps.
 
 #### Scenario: Contended save
 - GIVEN another save owns the document lock
@@ -31,7 +31,7 @@ The system MUST expose `Yarn → Guardar Turno` (desktop) AND checkbox `Settings
 
 ### Requirement: Assignment Snapshot Upsert and Audit
 
-The system MUST upsert at most 10 `DB_Asignaciones` rows per date by `(fecha, retorcedora)`. Each row SHALL snapshot assignment values, derived production values, and `rango_origen`; updates MUST preserve `creado` and refresh `actualizado` and `editado_por` (or `unknown`).
+The system MUST upsert at most 10 `DB_Asignaciones` rows per `(fecha, turno)` by `(fecha, turno, retorcedora)` (14 cols A:N: `id, fecha, turno, retorcedora, cabos, titulo_asignado, frentes_asignados, prod_dia, prod_turno, lotes_dia, creado, actualizado, editado_por, rango_origen` — extending PRD v0.1.0 frozen 13-col A:M to include `turno`). Each row SHALL snapshot assignment values, derived production values, and `rango_origen`; updates MUST preserve `creado` and refresh `actualizado` and `editado_por` (or `unknown`).
 
 #### Scenario: Re-save an assignment
 - GIVEN an assignment already exists for the saved date and retorcedora
@@ -40,7 +40,7 @@ The system MUST upsert at most 10 `DB_Asignaciones` rows per date by `(fecha, re
 
 ### Requirement: Variable Weighing Snapshot and Net Weight
 
-The system MUST upsert `DB_Descargas` by `(fecha, retorcedora, descarga_nro, lado)` for 0–80 weighings per day. It MUST recompute and store `peso_neto = bruto - (usos * peso_cono + peso_tacho)` with null inputs as zero and two-decimal rounding; `Settings!I50` remains a UX formula and is not authoritative. Each weighing MUST retain `creado` on update and refresh audit and source range fields.
+The system MUST upsert `DB_Descargas` by `(fecha, turno, retorcedora, descarga_nro, lado)` for 0–80 weighings per `(fecha, turno)` (16 cols A:P: `id, fecha, turno, retorcedora, descarga_nro, lado, titulo, peso_bruto, usos, peso_cono, peso_tacho, peso_neto, creado, actualizado, editado_por, rango_origen` — extending PRD v0.1.0 frozen 15-col A:O to include `turno`). It MUST recompute and store `peso_neto = bruto - (usos * peso_cono + peso_tacho)` with null inputs as zero and two-decimal rounding; `Settings!I50` remains a UX formula and is not authoritative. Each weighing MUST retain `creado` on update and refresh audit and source range fields.
 
 #### Scenario: Save a weighing
 - GIVEN a weighing has numeric gross weight and optional tare inputs

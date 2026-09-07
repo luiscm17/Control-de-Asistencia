@@ -1,5 +1,5 @@
 /**
- * Menu.test.gs — Narrow checks for the Settings!K2 checkbox and F4/F5 hydration guards.
+ * Menu.test.gs — Narrow checks for the Settings!I8 checkbox and F4/F5 hydration guards.
  * Lowercased sheets: settings, db_asignaciones, db_descargas, errors.
  */
 
@@ -36,25 +36,25 @@ function yarnFakeSettingsSpreadsheet_(names) {
 function yarnRunMenuTests_() {
   var cfg = YARN_SETTINGS_CONFIG;
   var settingsName = cfg.SHEETS.SETTINGS;
-  yarnAssert_(yarnIsSaveCheckboxEvent_(yarnMenuEvent_(settingsName, 2, 11, 'TRUE')),
-    'K2 TRUE must be accepted as the mobile save event.');
-  yarnAssert_(yarnIsSaveCheckboxEvent_(yarnMenuEvent_(settingsName, 2, 11, 'VERDADERO')),
-    'K2 VERDADERO must be accepted for the Spanish Sheets locale.');
-  yarnAssert_(!yarnIsSaveCheckboxEvent_(yarnMenuEvent_(settingsName, 2, 11, 'FALSE')),
-    'K2 FALSE must not start another save.');
-  yarnAssert_(!yarnIsSaveCheckboxEvent_(yarnMenuEvent_(cfg.SHEETS.WEIGHINGS, 2, 11, 'TRUE')),
-    'Only the settings K2 checkbox may start a save.');
+  yarnAssert_(yarnIsSaveCheckboxEvent_(yarnMenuEvent_(settingsName, 8, 9, 'TRUE')),
+    'I8 TRUE must be accepted as the mobile save event.');
+  yarnAssert_(yarnIsSaveCheckboxEvent_(yarnMenuEvent_(settingsName, 8, 9, 'VERDADERO')),
+    'I8 VERDADERO must be accepted for the Spanish Sheets locale.');
+  yarnAssert_(!yarnIsSaveCheckboxEvent_(yarnMenuEvent_(settingsName, 8, 9, 'FALSE')),
+    'I8 FALSE must not start another save.');
+  yarnAssert_(!yarnIsSaveCheckboxEvent_(yarnMenuEvent_(cfg.SHEETS.WEIGHINGS, 8, 9, 'TRUE')),
+    'Only the settings I8 checkbox may start a save.');
 
   // Strict single-variable: alias settings_form must NOT trigger (no tolerance).
-  yarnAssert_(!yarnIsSaveCheckboxEvent_(yarnMenuEvent_('settings_form', 2, 11, 'TRUE')),
-    'K2 TRUE on settings_form alias must NOT be accepted after simplification.');
-  yarnAssert_(!yarnIsSaveCheckboxEvent_(yarnMenuEvent_('SETTINGS', 2, 11, 'TRUE')),
-    'K2 TRUE on SETTINGS uppercase must NOT be accepted (case-sensitive strict).');
+  yarnAssert_(!yarnIsSaveCheckboxEvent_(yarnMenuEvent_('settings_form', 8, 9, 'TRUE')),
+    'I8 TRUE on settings_form alias must NOT be accepted after simplification.');
+  yarnAssert_(!yarnIsSaveCheckboxEvent_(yarnMenuEvent_('SETTINGS', 8, 9, 'TRUE')),
+    'I8 TRUE on SETTINGS uppercase must NOT be accepted (case-sensitive strict).');
   var ck = yarnParseA1_(cfg.RANGES.SAVE_CHECKBOX);
-  yarnAssert_(ck.row === 2 && ck.col === 11,
-    'Config SAVE_CHECKBOX must parse to K2 (2,11).');
+  yarnAssert_(ck.row === 8 && ck.col === 9,
+    'Config SAVE_CHECKBOX must parse to I8 (8,9).');
   yarnAssert_(yarnIsSaveCheckboxEvent_(yarnMenuEvent_(settingsName, ck.row, ck.col, 'TRUE')),
-    'K2 via Config-parsed coordinates must be accepted.');
+    'I8 via Config-parsed coordinates must be accepted.');
 
   // yarnGetSettingsSheet_ strict: only canonical settings is found.
   var ssAlias = yarnFakeSettingsSpreadsheet_(['settings_form']);
@@ -71,8 +71,8 @@ function yarnRunMenuTests_() {
     'yarnGetSettingsSheet_ must NOT find SETTINGS case-insensitively (strict).');
 
   // yarnParse helpers spot-check.
-  var single = yarnParseA1_('K2');
-  yarnAssert_(single.row === 2 && single.col === 11, 'yarnParseA1_ K2 must be 2,11.');
+  var single = yarnParseA1_('I8');
+  yarnAssert_(single.row === 8 && single.col === 9, 'yarnParseA1_ I8 must be 8,9.');
   var range = yarnParseRange_('B33:H42');
   yarnAssert_(range.r1 === 33 && range.c1 === 2 && range.r2 === 42 && range.c2 === 8,
     'yarnParseRange_ B33:H42 must be 33,2 -> 42,8.');

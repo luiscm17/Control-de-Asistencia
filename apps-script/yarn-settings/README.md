@@ -6,17 +6,17 @@ This isolated Apps Script project saves the `Settings` form into auditable Yarn 
 
 1. Make a copy containing `Settings`, `DB_Asignaciones`, `DB_Descargas`, and `Errors`.
 2. In the copy, open **Extensions → Apps Script** and create a standalone project containing this directory's `.gs` files and `appsscript.json`.
-3. Run `yarnSetupYarnSettings` once from the editor, then authorize the requested Sheets, UI, trigger, and user-email scopes. This creates or reconciles the DB headers, form validation, `Settings!K2` checkbox, and one installable `yarnSettingsOnEdit` trigger.
+3. Run `yarnSetupYarnSettings` once from the editor, then authorize the requested Sheets, UI, trigger, and user-email scopes. This creates or reconciles the DB headers, form validation, `Settings!I8` checkbox, and one installable `yarnSettingsOnEdit` trigger.
 4. Reload the workbook. The **Yarn** menu exposes `Guardar Turno`, both DB views, and `Re-sincronizar Settings`.
 
-The installer is idempotent: rerunning it does not add another K2 edit trigger. If the mobile checkbox stops reacting after a copied deployment, run **Yarn → Re-sincronizar Settings** while authorized.
+The installer is idempotent: rerunning it does not add another I8 edit trigger. If the mobile checkbox stops reacting after a copied deployment, run **Yarn → Re-sincronizar Settings** while authorized.
 
 ## Save controls
 
 - **Desktop:** choose **Yarn → Guardar Turno**.
-- **Desktop and mobile:** tick the native data-validation checkbox at `Settings!K2`. Its adjacent `L2` label is `☑ GUARDAR TURNO`.
+- **Desktop and mobile:** tick the native data-validation checkbox at `Settings!I8`. Its adjacent `J8` label is `☑ GUARDAR TURNO`.
 
-The installable handler recognizes only `Settings!K2` becoming `TRUE`, calls public `guardarTurno()`, waits about one second, and resets K2 to `FALSE` whether saving succeeds or fails. There is no drawing button.
+The installable handler recognizes only `Settings!I8` becoming `TRUE`, calls public `guardarTurno()`, waits about one second, and resets I8 to `FALSE` whether saving succeeds or fails. There is no drawing button.
 
 ## Save contract
 
@@ -34,6 +34,6 @@ Re-saving updates the matching row while preserving `creado` and refreshing `act
 
 ## Re-sync and rollback
 
-Use **Yarn → Re-sincronizar Settings** after a copied workbook changes its form validation, DB headers, or K2 trigger. It restores the frozen headers, date/title validation, checkbox, and the single installable edit trigger without clearing form data.
+Use **Yarn → Re-sincronizar Settings** after a copied workbook changes its form validation, DB headers, or I8 trigger. It restores the frozen headers, date/title validation, checkbox, and the single installable edit trigger without clearing form data.
 
 To roll back a deployment, delete the `yarnSettingsOnEdit` installable trigger, remove the Yarn Apps Script project/menu deployment, and retain DB rows for audit. If a data correction is necessary, use the workbook copy's version history or review and remove only rows created by the affected deployment.

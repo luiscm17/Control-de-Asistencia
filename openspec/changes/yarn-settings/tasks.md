@@ -41,7 +41,7 @@ Chain strategy: stacked-to-main
 
 - [x] 3.1 RED: create `apps-script/yarn-settings/tests/Core.test.gs` for lock retry, pre-validation zero writes, and injected-write rollback.
 - [x] 3.2 GREEN: in `apps-script/yarn-settings/Core.gs`, implement public `guardarTurno()` to validate, lock, apply one plan, flush, toast, and optionally clear input grids.
-- [x] 3.3 Create `apps-script/yarn-settings/Menu.gs` with `Yarn → Guardar Turno` menu and DB navigation/re-sync handlers; create checkbox `Settings!K2` (or `K2:L2` merged) `☑ GUARDAR TURNO` via `dataValidation` checkbox with `onEdit` handler that triggers `guardarTurno()` and auto-unchecks `K2=FALSE` after ~1s on success/failure. No drawing button.
+- [x] 3.3 Create `apps-script/yarn-settings/Menu.gs` with `Yarn → Guardar Turno` menu and DB navigation/re-sync handlers; create checkbox `Settings!I8` `☑ GUARDAR TURNO` via `dataValidation` checkbox with `onEdit` handler that triggers `guardarTurno()` and auto-unchecks `Settings!I8=FALSE` after ~1s on success/failure. No drawing button.
 
 ## Phase 4: Verification and Documentation (PR 3)
 
