@@ -67,11 +67,7 @@ function yarnSettingsOnEdit(event) {
       var rawTurno = settings.getRange(YARN_SETTINGS_CONFIG.RANGES.TURNO).getValue();
       var normalizedDate = (typeof yarnNormalizeDate_ === 'function') ? yarnNormalizeDate_(rawDate) : null;
       var normalizedTurno = (typeof yarnNormalizeTurno_ === 'function') ? yarnNormalizeTurno_(rawTurno) : null;
-      if (!normalizedDate || !normalizedTurno) {
-        // Incomplete composite key → clear for new entry, keep UX responsive
-        yarnClearSettingsForm_(settings);
-        return;
-      }
+      if (!normalizedDate || !normalizedTurno) return;
       yarnHydrateSettingsForm_(ss, normalizedDate, normalizedTurno);
     } catch (error) {
       try {
@@ -125,7 +121,6 @@ function yarnHydrateSettingsForm_(ss, date, turno) {
   try {
     state = yarnLoadPersistenceState_(spreadsheet);
   } catch (error) {
-    yarnClearSettingsForm_(settings);
     throw error;
   }
 
@@ -164,8 +159,7 @@ function yarnHydrateSettingsForm_(ss, date, turno) {
   });
 
   if (matchingAssignments.length === 0 && matchingWeighings.length === 0) {
-    yarnClearSettingsForm_(settings);
-    try { spreadsheet.toast('Nuevo turno — formulario vacío', 'Yarn', 3); } catch (ignore) {}
+    try { spreadsheet.toast('Nuevo turno — sin datos guardados', 'Yarn', 3); } catch (ignore) {}
     return;
   }
 
