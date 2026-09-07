@@ -27,16 +27,18 @@ const CONERAS_CONFIG = Object.freeze({
     SAVE_LABEL: 'J8',
     DB_HEADERS: 'A1:P1',
     ERRORS_HEADERS: 'A1:F1',
-    DASHBOARD_EFFICIENCY: 'B7',
-    DASHBOARD_PERIODO: 'B3',
+    DASHBOARD_EFFICIENCY: 'B8',
+    DASHBOARD_PERIODO: 'B5',
     DASHBOARD_TURNO: 'B4',
-    DASHBOARD_MAQUINA: 'B5',
-    DASHBOARD_SUPERVISOR: 'B6',
-    DASHBOARD_FECHA: 'B8',
-    DASHBOARD_TOTALS: 'E7',
+    DASHBOARD_MAQUINA: 'B9',
+    DASHBOARD_SUPERVISOR: 'B7',
+    DASHBOARD_FECHA: 'B6',
+    DASHBOARD_TITLES: 'E7:E16',
+    DASHBOARD_TOTALS: 'F7',
+    DASHBOARD_TOTALS_RANGE: 'F7:F16',
     DASHBOARD_DAILY: 'K7',
-    DASHBOARD_TOTALS_CHART_RANGE: 'E7:F1000',
-    DASHBOARD_DAILY_CHART_RANGE: 'K7:L1000'
+    DASHBOARD_TOTALS_CHART_RANGE: 'E7:F',
+    DASHBOARD_DAILY_CHART_RANGE: 'K7:L'
   }),
   LIMITS: Object.freeze({
     DESCARGAS: 15,
@@ -68,10 +70,7 @@ const CONERAS_CONFIG = Object.freeze({
   }),
   FORMULAS: Object.freeze({
     NET_WEIGHT_FIRST: '=SI(ESNUMERO(D8),MAX(0,D8-(E8*F8)-G8),"")',
-    TOTAL_NET_WEIGHT: '=SUMA(H8:H22)',
-    META_REAL: '=SI(ESNUMERO(C4),C4*dashboard!B7,"")',
-    DASHBOARD_TOTALS_SELECT: 'select F, sum(L)',
-    DASHBOARD_TOTALS_GROUP_BY: 'F',
+    DASHBOARD_TOTALS_SELECT: 'select sum(L)',
     DASHBOARD_DAILY_SELECT: 'select B, sum(L)',
     DASHBOARD_DAILY_GROUP_BY: 'B'
   }),
@@ -125,27 +124,38 @@ function conerasHeadersMatch_(actual, expected) {
 }
 
 function conerasFormulaCells_() {
-  return Object.freeze([
-    Object.freeze({ range: CONERAS_CONFIG.RANGES.META_REAL, formula: CONERAS_CONFIG.FORMULAS.META_REAL }),
-    Object.freeze({ range: CONERAS_CONFIG.RANGES.TOTAL_NET_WEIGHT, formula: CONERAS_CONFIG.FORMULAS.TOTAL_NET_WEIGHT }),
-    Object.freeze({ range: CONERAS_CONFIG.RANGES.NET_WEIGHT_FIRST, formula: CONERAS_CONFIG.FORMULAS.NET_WEIGHT_FIRST })
-  ]);
+  // All native formulas (H8, H23, E4) are Sheet-owned — verified leniently in Setup, never overwritten by script.
+  return Object.freeze([]);
 }
 
 function conerasBuildDashboardQuery_(selectClause, groupBy, emptyForFecha) {
   const ranges = CONERAS_CONFIG.RANGES;
   const temporalPredicate = emptyForFecha
-    ? 'SI($' + ranges.DASHBOARD_PERIODO + '="Fecha";" and B is null";'
-    : 'SI($' + ranges.DASHBOARD_PERIODO + '="Fecha";SI(ESNUMERO($' + ranges.DASHBOARD_FECHA + ');" and B = date \'"&TEXTO($' + ranges.DASHBOARD_FECHA + ';"yyyy-MM-dd")&"\'";" and B is null");';
-  const rollingPeriod = 'SI($' + ranges.DASHBOARD_PERIODO + '="Semana";" and B >= date \'"&TEXTO(HOY()-6;"yyyy-MM-dd")&"\' and B <= date \'"&TEXTO(HOY();"yyyy-MM-dd")&"\'";" and B >= date \'"&TEXTO(FECHA(AÑO(HOY());MES(HOY());1);"yyyy-MM-dd")&"\' and B <= date \'"&TEXTO(FIN.MES(HOY();0);"yyyy-MM-dd")&"\'")';
+    ? 'SI($' + ranges.DASHBOARD_PERIODO + '="Fecha"," and B is null",'
+    : 'SI($' + ranges.DASHBOARD_PERIODO + '="Fecha",SI(ESNUMERO($' + ranges.DASHBOARD_FECHA + ')," and B = date \'"&TEXTO($' + ranges.DASHBOARD_FECHA + ',"yyyy-MM-dd")&"\'"," and B is null"),';
+  const rollingPeriod = 'SI($' + ranges.DASHBOARD_PERIODO + '="Semana"," and B >= date \'"&TEXTO(HOY()-6,"yyyy-MM-dd")&"\' and B <= date \'"&TEXTO(HOY(),"yyyy-MM-dd")&"\'"," and B >= date \'"&TEXTO(FECHA(AÑO(HOY()),MES(HOY()),1),"yyyy-MM-dd")&"\' and B <= date \'"&TEXTO(FIN.MES(HOY(),0),"yyyy-MM-dd")&"\'")';
   const filters = [
-    'SI($' + ranges.DASHBOARD_TURNO + '="Todos";"";" and C = \'"&SUSTITUIR($' + ranges.DASHBOARD_TURNO + ';"\'";"\'\'")&"\'")',
-    'SI($' + ranges.DASHBOARD_MAQUINA + '="Todos";"";" and D = \'"&SUSTITUIR($' + ranges.DASHBOARD_MAQUINA + ';"\'";"\'\'")&"\'")',
-    'SI($' + ranges.DASHBOARD_SUPERVISOR + '="Todos";"";" and M = \'"&SUSTITUIR($' + ranges.DASHBOARD_SUPERVISOR + ';"\'";"\'\'")&"\'")'
+    'SI($' + ranges.DASHBOARD_TURNO + '="Todos",""," and C = \'"&SUSTITUIR($' + ranges.DASHBOARD_TURNO + ',"\'","\'\'")&"\'")',
+    'SI($' + ranges.DASHBOARD_MAQUINA + '="Todos",""," and D = \'"&SUSTITUIR($' + ranges.DASHBOARD_MAQUINA + ',"\'","\'\'")&"\'")',
+    'SI($' + ranges.DASHBOARD_SUPERVISOR + '="Todos",""," and M = \'"&SUSTITUIR($' + ranges.DASHBOARD_SUPERVISOR + ',"\'","\'\'")&"\'")'
   ].join('&');
   const label = groupBy === 'F'
     ? " label F 'Título', sum(L) 'Peso Neto'"
     : " label B 'Fecha', sum(L) 'Peso Neto'";
-  return '=QUERY(db_coneras!A:P;"' + selectClause + ' where B is not null"&' +
-    temporalPredicate + rollingPeriod + '&' + filters + '&" group by ' + groupBy + label + '";1)';
+  return '=QUERY(db_coneras!A:P,"' + selectClause + ' where B is not null"&' +
+    temporalPredicate + rollingPeriod + '&' + filters + '&" group by ' + groupBy + label + '",1)';
+}
+
+function conerasBuildDashboardTotalsFormula_(tituloCell) {
+  const ranges = CONERAS_CONFIG.RANGES;
+  const cell = tituloCell || ranges.DASHBOARD_TITLES.split(':')[0];
+  const temporal = 'SI($' + ranges.DASHBOARD_PERIODO + '="Fecha",SI(ESNUMERO($' + ranges.DASHBOARD_FECHA + ')," and B = date \'"&TEXTO($' + ranges.DASHBOARD_FECHA + ',"yyyy-MM-dd")&"\'"," and B is null"),SI($' + ranges.DASHBOARD_PERIODO + '="Semana"," and B >= date \'"&TEXTO(HOY()-6,"yyyy-MM-dd")&"\' and B <= date \'"&TEXTO(HOY(),"yyyy-MM-dd")&"\'"," and B >= date \'"&TEXTO(FECHA(AÑO(HOY()),MES(HOY()),1),"yyyy-MM-dd")&"\' and B <= date \'"&TEXTO(FIN.MES(HOY(),0),"yyyy-MM-dd")&"\'")';
+  const filters = [
+    'SI($' + ranges.DASHBOARD_TURNO + '="Todos",""," and C = \'"&SUSTITUIR($' + ranges.DASHBOARD_TURNO + ',"\'","\'\'")&"\'")',
+    'SI($' + ranges.DASHBOARD_MAQUINA + '="Todos",""," and D = \'"&SUSTITUIR($' + ranges.DASHBOARD_MAQUINA + ',"\'","\'\'")&"\'")',
+    'SI($' + ranges.DASHBOARD_SUPERVISOR + '="Todos",""," and M = \'"&SUSTITUIR($' + ranges.DASHBOARD_SUPERVISOR + ',"\'","\'\'")&"\'")'
+  ].join('&');
+  const tituloEscaped = 'SUSTITUIR(TEXTO(' + cell + ',"@"),"\'","\'\'")';
+  const tituloPredicate = 'SI(ESNUMERO(' + cell + ')," and F = "&' + cell + '&" "," and F = \'"&' + tituloEscaped + '&"\'")';
+  return '=SI(' + cell + '="","",SI.ERROR(QUERY(db_coneras!A:P,"' + CONERAS_CONFIG.FORMULAS.DASHBOARD_TOTALS_SELECT + ' where B is not null"&' + tituloPredicate + '&' + temporal + '&' + filters + '&" label sum(L) \'\'",0),0))';
 }

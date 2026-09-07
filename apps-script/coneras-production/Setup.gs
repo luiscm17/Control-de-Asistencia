@@ -28,18 +28,79 @@ function conerasConfigureDashboard_(dashboard) {
       .requireValueInList(control[2], true).setAllowInvalid(false).build());
     if (valueRange.getValue() === '') valueRange.setValue(control[3]);
   });
-  dashboard.getRange('A8').setValue('Fecha');
+  dashboard.getRange('A' + ranges.DASHBOARD_FECHA.slice(1)).setValue('Fecha:');
   const fecha = dashboard.getRange(ranges.DASHBOARD_FECHA);
   fecha.setDataValidation(SpreadsheetApp.newDataValidation().requireDate()
     .setAllowInvalid(false).setHelpText('Seleccioná una fecha válida.').build())
     .setNumberFormat('dd/MM/yyyy');
-  dashboard.getRange('A7').setValue('Eficiencia');
+  dashboard.getRange('A' + ranges.DASHBOARD_EFFICIENCY.slice(1)).setValue('Eficiencia del Personal:');
   const efficiency = dashboard.getRange(ranges.DASHBOARD_EFFICIENCY);
   if (efficiency.getValue() === '') efficiency.setValue(1);
-  dashboard.getRange(ranges.DASHBOARD_TOTALS).setFormula(conerasBuildDashboardQuery_(
-    CONERAS_CONFIG.FORMULAS.DASHBOARD_TOTALS_SELECT,
-    CONERAS_CONFIG.FORMULAS.DASHBOARD_TOTALS_GROUP_BY,
-    false));
+  // Titles E7:E16 are numeric inputs (Escribe el Título) — never overwrite with a QUERY spill.
+  // Totals F7:F16 are per-row formulas that query db_coneras filtered by E-row titulo + dashboard filters.
+  // Legacy cleanup: previous Setup placed a spilling QUERY at E7; clear any E7:E16 formulas back to input values.
+  try {
+    const titleRange = dashboard.getRange(ranges.DASHBOARD_TITLES);
+    const hasBatchApis = titleRange.getFormulas && titleRange.getValues && titleRange.clearContent && titleRange.setValues;
+    if (hasBatchApis) {
+      const formulas = titleRange.getFormulas();
+      let needsClear = false;
+      for (let i = 0; i < formulas.length; i++) {
+        const f = String(formulas[i][0] || '');
+        if (f && (f.toUpperCase().indexOf('QUERY') !== -1 || f.indexOf('db_coneras') !== -1)) {
+          needsClear = true;
+          break;
+        }
+      }
+      if (needsClear) {
+        const values = titleRange.getValues();
+        const sanitized = values.map(function(row) {
+          const v = row[0];
+          if (typeof v === 'number' && isFinite(v)) return [v];
+          if (typeof v === 'string') {
+            const t = v.trim();
+            if (t === '' || t.charAt(0) === '#' || t.indexOf('Nombre de hoja') !== -1 ||
+                t.toLowerCase().indexOf('error de an') !== -1 || t.indexOf('QUERY') !== -1) return [''];
+            if (/^-?\d+(\.\d+)?$/.test(t)) return [Number(t)];
+            return [t];
+          }
+          return [''];
+        });
+        titleRange.clearContent();
+        titleRange.setValues(sanitized);
+      }
+    } else {
+      // Fallback per-cell for mocks or limited APIs
+      const totalsStartRowFallback = Number(ranges.DASHBOARD_TITLES.split(':')[0].replace(/[^0-9]/g, '')) || 7;
+      const totalsEndRowFallback = Number(ranges.DASHBOARD_TITLES.split(':')[1].replace(/[^0-9]/g, '')) || 16;
+      const tituloColFallback = ranges.DASHBOARD_TITLES.replace(/[0-9:]/g, '').charAt(0) || 'E';
+      for (let row = totalsStartRowFallback; row <= totalsEndRowFallback; row++) {
+        const cell = dashboard.getRange(tituloColFallback + row);
+        if (cell.getFormula) {
+          const f = String(cell.getFormula() || '');
+          if (f && (f.toUpperCase().indexOf('QUERY') !== -1 || f.indexOf('db_coneras') !== -1)) {
+            if (cell.clearContent) cell.clearContent();
+            else if (cell.setValue) {
+              const v = cell.getValue ? cell.getValue() : '';
+              if (typeof v === 'number' && isFinite(v)) cell.setValue(v);
+              else cell.setValue('');
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    Logger.log('Dashboard title cleanup skipped: ' + e.message);
+  }
+  const totalsStartRow = Number(ranges.DASHBOARD_TITLES.split(':')[0].replace(/[^0-9]/g, '')) || 7;
+  const totalsEndRow = Number(ranges.DASHBOARD_TITLES.split(':')[1].replace(/[^0-9]/g, '')) || 16;
+  const tituloCol = ranges.DASHBOARD_TITLES.replace(/[0-9:]/g, '').charAt(0) || 'E';
+  const totalsCol = ranges.DASHBOARD_TOTALS.replace(/[^A-Z]/g, '').charAt(0) || 'F';
+  for (let row = totalsStartRow; row <= totalsEndRow; row++) {
+    const tituloCell = tituloCol + row;
+    const totalsCell = totalsCol + row;
+    dashboard.getRange(totalsCell).setFormula(conerasBuildDashboardTotalsFormula_(tituloCell));
+  }
   dashboard.getRange(ranges.DASHBOARD_DAILY).setFormula(conerasBuildDashboardQuery_(
     CONERAS_CONFIG.FORMULAS.DASHBOARD_DAILY_SELECT,
     CONERAS_CONFIG.FORMULAS.DASHBOARD_DAILY_GROUP_BY,
@@ -119,10 +180,44 @@ function conerasConfigureForm_(form) {
 }
 
 function conerasVerifyNativeFormulas_(form) {
-  conerasFormulaCells_().forEach(function (expected) {
-    const actual = form.getRange(expected.range).getFormula();
-    if (actual !== expected.formula) {
-      throw new Error('Native formula changed or missing at ' + expected.range + '. Restore it before setup.');
-    }
-  });
+  if (!conerasHasNetWeightFormula_(form.getRange(CONERAS_CONFIG.RANGES.NET_WEIGHT_FIRST).getFormula())) {
+    throw new Error('Native formula missing at ' + CONERAS_CONFIG.RANGES.NET_WEIGHT_FIRST + '. Restore it before setup.');
+  }
+  if (!conerasHasFormula_(form.getRange(CONERAS_CONFIG.RANGES.META_REAL).getFormula())) {
+    throw new Error('Native formula missing at ' + CONERAS_CONFIG.RANGES.META_REAL + '. Restore it before setup.');
+  }
+  if (!conerasHasTotalFormula_(form.getRange(CONERAS_CONFIG.RANGES.TOTAL_NET_WEIGHT).getFormula())) {
+    throw new Error('Native formula missing at ' + CONERAS_CONFIG.RANGES.TOTAL_NET_WEIGHT + '. Restore it before setup.');
+  }
+}
+
+function conerasHasNetWeightFormula_(formula) {
+  if (typeof formula !== 'string') return false;
+  const trimmed = formula.trim();
+  if (trimmed.charAt(0) !== '=') return false;
+  const upper = trimmed.toUpperCase();
+  const normalized = upper.replace(/\s+/g, '').replace(/\$/g, '');
+  const hasConditional = normalized.indexOf('SI(') !== -1 || normalized.indexOf('IF(') !== -1;
+  if (!hasConditional) return false;
+  const hasNumberCheck = normalized.indexOf('ESNUMERO') !== -1 || normalized.indexOf('ISNUMBER') !== -1;
+  if (!hasNumberCheck) return false;
+  if (normalized.indexOf('MAX') === -1) return false;
+  if (normalized.indexOf('D8') === -1 || normalized.indexOf('E8') === -1 ||
+      normalized.indexOf('F8') === -1 || normalized.indexOf('G8') === -1) return false;
+  return true;
+}
+
+function conerasHasFormula_(formula) {
+  return typeof formula === 'string' && formula.trim().charAt(0) === '=';
+}
+
+function conerasHasTotalFormula_(formula) {
+  if (typeof formula !== 'string') return false;
+  const trimmed = formula.trim();
+  if (trimmed.charAt(0) !== '=') return false;
+  const upper = trimmed.toUpperCase();
+  const hasSum = upper.indexOf('SUMA') !== -1 || upper.indexOf('SUM') !== -1;
+  if (!hasSum) return false;
+  const normalized = upper.replace(/\s+/g, '').replace(/\$/g, '');
+  return normalized.indexOf('H8:H22') !== -1;
 }
