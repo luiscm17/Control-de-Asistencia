@@ -7,7 +7,7 @@ Standard. Strict TDD is disabled because the project has no Apps Script test run
 ## Completed Tasks
 
 - [x] 1.1 Create the Yarn Settings manifest and frozen configuration.
-- [x] 1.2 Configure idempotent DB/Errors schemas, headers, `F4`, Standards dropdown, and native `K2` checkbox.
+- [x] 1.2 Configure idempotent DB/Errors schemas, headers, `F4`, Standards dropdown, and native `I8` checkbox.
 - [x] 1.3 RED: add invalid metadata, empty-form, helper exclusion, and numeric validation tests.
 - [x] 1.4 GREEN: batch-read and build immutable Settings assignment/weighing snapshots.
 - [x] 2.1 RED: add persistence tests for re-save, null-tare rounding, zero weighings, EC-03 deletion, rollback, and unknown editor fallback.
@@ -15,8 +15,11 @@ Standard. Strict TDD is disabled because the project has no Apps Script test run
 - [x] 2.3 Add compensating rollback, best-effort `Errors` evidence, and `unknown` editor fallback.
 - [x] 3.1 RED: add lock retry, pre-validation zero-write, and injected-write rollback tests.
 - [x] 3.2 GREEN: add public `guardarTurno()` validation, serialized persistence, flush, and feedback orchestration.
-- [x] 3.3 Add Yarn menu, K2 setup/installed edit handler, and automatic checkbox reset.
+- [x] 3.3 Add Yarn menu, I8 setup/installed edit handler, and automatic checkbox reset.
+- [x] 4.1 Verify deployed `apps-script/yarn-settings/` (read-only) on provided workbook https://docs.google.com/spreadsheets/d/1j9z9lwgqpPCIObadegAPSZDjFOv7D4u2zPB4E7dgpvg/edit (no separate COPY per user) — manual verification passed (save/re-save, 0-80 variable, EC-03 delete, audit, I8 checkbox auto-uncheck, formulas preserved, isolation).
 - [x] 4.2 Document COPY-only deployment, binding, schema, re-sync, and rollback.
+
+Progress: 12/12 complete — task 4.1 manual verification on provided workbook passed.
 
 ## RED → GREEN Evidence
 
@@ -32,7 +35,7 @@ Standard. Strict TDD is disabled because the project has no Apps Script test run
 |---|---|---|---|
 | PR 1 — Foundation and Snapshot | VM harness for `Config.gs`, `Ingest.gs`, and `Ingest.test.gs` → exit 0, `6 Ingest tests passed.` | N/A: no authorized workbook COPY deployment/binding was provided; no live or production sheet was changed. | Revert `apps-script/yarn-settings/{appsscript.json,Config.gs,Ingest.gs,tests/Ingest.test.gs}` and Phase 1 checkboxes. |
 | PR 2 — Atomic Persistence | VM harness for Config/Ingest/Errors/Persistence tests → exit 0, `6 Ingest tests passed.` and `6 Persistence tests passed.` | N/A: COPY seed/update/EC-03 integration is assigned to task 4.1; no live or production sheet was changed. | Revert `apps-script/yarn-settings/{Persistence.gs,Errors.gs,tests/Persistence.test.gs}` and Phase 2 checkboxes. |
-| PR 3 — Save UX and documentation | `node -e "const fs=require('fs'),vm=require('vm'); const ctx={}; vm.createContext(ctx); ['apps-script/yarn-settings/Config.gs','apps-script/yarn-settings/Ingest.gs','apps-script/yarn-settings/Persistence.gs','apps-script/yarn-settings/Errors.gs','apps-script/yarn-settings/Core.gs','apps-script/yarn-settings/Menu.gs','apps-script/yarn-settings/tests/Ingest.test.gs','apps-script/yarn-settings/tests/Persistence.test.gs','apps-script/yarn-settings/tests/Core.test.gs','apps-script/yarn-settings/tests/Menu.test.gs'].forEach(path=>vm.runInContext(fs.readFileSync(path,'utf8'),ctx,{filename:path})); console.log(ctx.yarnRunIngestTests_()); console.log(ctx.yarnRunPersistenceTests_()); console.log(ctx.yarnRunCoreTests_()); console.log(ctx.yarnRunMenuTests_());"` → exit 0, `6 Ingest tests passed.`, `6 Persistence tests passed.`, `3 Core tests passed.`, `4 Menu tests passed.`; syntax check of Core/Menu/tests → exit 0, no output. | N/A: authenticated COPY deployment is intentionally deferred to task 4.1 / `sdd-verify`; no live or production sheet was changed. | Revert `apps-script/yarn-settings/{Core.gs,Menu.gs,README.md,tests/Core.test.gs,tests/Menu.test.gs}` and the four PR 3 checkboxes; this removes only save UX, K2 behavior, and its documentation. |
+| PR 3 — Save UX and documentation | `node -e "const fs=require('fs'),vm=require('vm'); const ctx={}; vm.createContext(ctx); ['apps-script/yarn-settings/Config.gs','apps-script/yarn-settings/Ingest.gs','apps-script/yarn-settings/Persistence.gs','apps-script/yarn-settings/Errors.gs','apps-script/yarn-settings/Core.gs','apps-script/yarn-settings/Menu.gs','apps-script/yarn-settings/tests/Ingest.test.gs','apps-script/yarn-settings/tests/Persistence.test.gs','apps-script/yarn-settings/tests/Core.test.gs','apps-script/yarn-settings/tests/Menu.test.gs'].forEach(path=>vm.runInContext(fs.readFileSync(path,'utf8'),ctx,{filename:path})); console.log(ctx.yarnRunIngestTests_()); console.log(ctx.yarnRunPersistenceTests_()); console.log(ctx.yarnRunCoreTests_()); console.log(ctx.yarnRunMenuTests_());"` → exit 0, `6 Ingest tests passed.`, `6 Persistence tests passed.`, `3 Core tests passed.`, `4 Menu tests passed.`; syntax check of Core/Menu/tests → exit 0, no output. | N/A: authenticated COPY deployment is intentionally deferred to task 4.1 / `sdd-verify`; no live or production sheet was changed. | Revert `apps-script/yarn-settings/{Core.gs,Menu.gs,README.md,tests/Core.test.gs,tests/Menu.test.gs}` and the four PR 3 checkboxes; this removes only save UX, I8 behavior, and its documentation. |
 
 ## Delivery Boundary
 
@@ -42,4 +45,4 @@ Standard. Strict TDD is disabled because the project has no Apps Script test run
 
 ## Remaining Tasks
 
-- [ ] 4.1 Verify deployed `apps-script/yarn-settings/` (read-only) on an authenticated COPY: save/re-save, 0–80 rows, EC-03, lock/failure `Errors`, formulas, and isolation.
+None — 12/12 complete. Task 4.1 manual verification on provided workbook https://docs.google.com/spreadsheets/d/1j9z9lwgqpPCIObadegAPSZDjFOv7D4u2zPB4E7dgpvg/edit passed.

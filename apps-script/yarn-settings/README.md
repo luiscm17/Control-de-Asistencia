@@ -26,8 +26,8 @@ Input is limited to `Settings!B33:H42` and `Settings!E50:H157` (ingested as `B33
 
 | Sheet | Primary key | Frozen columns |
 |---|---|---|
-| `DB_Asignaciones` | `(fecha, retorcedora)` | A:M |
-| `DB_Descargas` | `(fecha, retorcedora, descarga_nro, lado)` | A:O |
+| `DB_Asignaciones` | `(fecha, turno, retorcedora)` | A:N |
+| `DB_Descargas` | `(fecha, turno, retorcedora, descarga_nro, lado)` | A:P |
 | `Errors` | Append-only evidence | A:F |
 
 Re-saving updates the matching row while preserving `creado` and refreshing `actualizado`, `editado_por`, and `rango_origen`. Clearing a visible weighing's gross weight then saving removes only that weighing PK. Failures attempt best-effort `Errors` evidence and show a failure toast.
