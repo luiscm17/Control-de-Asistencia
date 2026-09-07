@@ -26,10 +26,10 @@ Chain strategy: feature-branch-chain
 
 ## Phase 1: Foundation
 
-- [ ] 1.1 Create `apps-script/coneras-production/Config.gs` with frozen centralized sheets, ranges, headers, formulas, timezone, validation values, IDs, and schema helpers.
-- [ ] 1.2 Create `apps-script/coneras-production/Errors.gs` for La Paz timestamped `Errors` rows and validation/lock toast mapping.
-- [ ] 1.3 Create `apps-script/coneras-production/Setup.gs` to create/protect `db_coneras!A:P`, configure form validations/formulas without writing `E4`, `H8:H22`, or `H23` after setup.
-- [ ] 1.4 Add `apps-script/coneras-production/tests/coneras-production.test.gs` harness checks for IDs, date normalization, frozen headers, formulas, and protected write boundaries.
+- [x] 1.1 Create `apps-script/coneras-production/Config.gs` with frozen centralized sheets, ranges, headers, formulas, timezone, validation values, IDs, and schema helpers.
+- [x] 1.2 Create `apps-script/coneras-production/Errors.gs` for La Paz timestamped `Errors` rows and validation/lock toast mapping.
+- [x] 1.3 Create `apps-script/coneras-production/Setup.gs` to create/protect `db_coneras!A:P`, configure form validations/formulas without writing `E4`, `H8:H22`, or `H23` after setup.
+- [x] 1.4 Add `apps-script/coneras-production/tests/coneras-production.test.gs` harness checks for IDs, date normalization, frozen headers, formulas, and protected write boundaries.
 
 ## Phase 2: Recording and Persistence
 
