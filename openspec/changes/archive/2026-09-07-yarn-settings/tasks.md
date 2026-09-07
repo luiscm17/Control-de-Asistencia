@@ -47,3 +47,7 @@ Chain strategy: stacked-to-main
 
 - [x] 4.1 Verify deployed `apps-script/yarn-settings/` (read-only) on provided workbook https://docs.google.com/spreadsheets/d/1j9z9lwgqpPCIObadegAPSZDjFOv7D4u2zPB4E7dgpvg/edit (no separate COPY per user) — manual verification passed (save/re-save, 0-80 variable, EC-03 delete, audit, I8 checkbox auto-uncheck, formulas preserved, isolation).
 - [x] 4.2 Create `apps-script/yarn-settings/README.md` with COPY-only deployment, OAuth/menu/checkbox binding, DB schema, re-sync, and rollback instructions.
+
+## Archive Status
+
+Archived after final verification passed. All 12 implementation tasks remain complete.
