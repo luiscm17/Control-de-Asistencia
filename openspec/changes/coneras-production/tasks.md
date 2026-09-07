@@ -33,12 +33,12 @@ Chain strategy: feature-branch-chain
 
 ## Phase 2: Recording and Persistence
 
-- [ ] 2.1 Implement `apps-script/coneras-production/Persistence.gs` Map-based 0–15 upsert plan preserving `creado`, refreshing audit fields, and capturing numeric two-decimal net weight.
-- [ ] 2.2 Implement `apps-script/coneras-production/Core.gs` snapshot validation, date-first hydration, formula-safe `B8:G22` writes, and single 5s-plus-retry document lock save flow.
-- [ ] 2.3 Implement `apps-script/coneras-production/Ingest.gs` installable selector hydration and `I8` FALSE→TRUE save/reset routing; ignore form-cell edits.
-- [ ] 2.4 Implement `apps-script/coneras-production/Menu.gs` for save, database view, and re-sync actions.
-- [ ] 2.5 Extend `apps-script/coneras-production/tests/coneras-production.test.gs` for invalid selectors/no write, 0/1/15 upsert, resave audit, datetime PK, blank bruto skip, and lock timeout logging.
-- [ ] 2.6 Extend `apps-script/coneras-production/tests/coneras-production.test.gs` for delete-guard Continue deletes only listed PKs and Cancel preserves all rows.
+- [x] 2.1 Implement `apps-script/coneras-production/Persistence.gs` Map-based 0–15 upsert plan preserving `creado`, refreshing audit fields, and capturing numeric two-decimal net weight.
+- [x] 2.2 Implement `apps-script/coneras-production/Core.gs` snapshot validation, date-first hydration, formula-safe `B8:G22` writes, and single 5s-plus-retry document lock save flow.
+- [x] 2.3 Implement `apps-script/coneras-production/Ingest.gs` installable selector hydration and `I8` FALSE→TRUE save/reset routing; ignore form-cell edits.
+- [x] 2.4 Implement `apps-script/coneras-production/Menu.gs` for save, database view, and re-sync actions.
+- [x] 2.5 Extend `apps-script/coneras-production/tests/coneras-production.test.gs` for invalid selectors/no write, 0/1/15 upsert, resave audit, datetime PK, blank bruto skip, and lock timeout logging.
+- [x] 2.6 Extend `apps-script/coneras-production/tests/coneras-production.test.gs` for delete-guard Continue deletes only listed PKs and Cancel preserves all rows.
 
 ## Phase 3: Dashboard and Integration
 
