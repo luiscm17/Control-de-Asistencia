@@ -42,8 +42,8 @@ Chain strategy: feature-branch-chain
 
 ## Phase 3: Dashboard and Integration
 
-- [ ] 3.1 Extend `apps-script/coneras-production/Setup.gs` with centralized native `dashboard!E7` QUERY setup, controls, and charts; no dashboard database write path.
-- [ ] 3.2 Add dashboard harness cases in `apps-script/coneras-production/tests/coneras-production.test.gs` for Fecha-empty spill, Semana/Mes date ranges, Todos predicate omission, blank title grouping, and formula-safe Meta Real.
+- [x] 3.1 Extend `apps-script/coneras-production/Setup.gs` with centralized native `dashboard!E7` QUERY setup, controls, and charts; no dashboard database write path.
+- [x] 3.2 Add dashboard harness cases in `apps-script/coneras-production/tests/coneras-production.test.gs` for Fecha-empty spill, Semana/Mes date ranges, Todos predicate omission, blank title grouping, and formula-safe Meta Real.
 - [ ] 3.3 On a workbook COPY, run setup and verify menu/checkbox save, hydrate, delete alert, `E7` spill, and chart visibility across Fecha/Semana/Mes.
 
 ## Phase 4: Documentation
