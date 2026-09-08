@@ -238,10 +238,90 @@ function conerasTestDashboardQueries_() {
     'Daily must use string range B >= \'...\' without date keyword.');
   conerasAssert_(perTitle.indexOf(" and B <= '") !== -1 && daily.indexOf(" and B <= '") !== -1,
     'Both per-title and daily must use B <= \'...\' string comparison.');
+  // New pivot RANGES and FORMULAS
+  conerasAssert_(CONERAS_CONFIG.RANGES.DASHBOARD_PIVOT_TITULO === 'O7',
+    'DASHBOARD_PIVOT_TITULO must be O7 for stacked evolution by titulo.');
+  conerasAssert_(CONERAS_CONFIG.RANGES.DASHBOARD_PIVOT_TITULO_CHART_RANGE === 'O7:AA',
+    'DASHBOARD_PIVOT_TITULO_CHART_RANGE must be O7:AA.');
+  conerasAssert_(CONERAS_CONFIG.RANGES.DASHBOARD_PIVOT_MAQUINA === 'AC7',
+    'DASHBOARD_PIVOT_MAQUINA must be AC7 for evolution by maquina.');
+  conerasAssert_(CONERAS_CONFIG.RANGES.DASHBOARD_PIVOT_MAQUINA_CHART_RANGE === 'AC7:AG',
+    'DASHBOARD_PIVOT_MAQUINA_CHART_RANGE must be AC7:AG.');
+  conerasAssert_(CONERAS_CONFIG.RANGES.DASHBOARD_PIVOT_TURNO === 'AI7',
+    'DASHBOARD_PIVOT_TURNO must be AI7 for comparativo por turno.');
+  conerasAssert_(CONERAS_CONFIG.RANGES.DASHBOARD_PIVOT_TURNO_CHART_RANGE === 'AI7:AL',
+    'DASHBOARD_PIVOT_TURNO_CHART_RANGE must be AI7:AL.');
+  conerasAssert_(CONERAS_CONFIG.FORMULAS.DASHBOARD_PIVOT_TITULO_SELECT === 'select B, sum(L) group by B pivot F',
+    'FORMULA pivot titulo must be select B, sum(L) group by B pivot F.');
+  conerasAssert_(CONERAS_CONFIG.FORMULAS.DASHBOARD_PIVOT_MAQUINA_SELECT === 'select B, sum(L) group by B pivot D',
+    'FORMULA pivot maquina must be select B, sum(L) group by B pivot D.');
+  conerasAssert_(CONERAS_CONFIG.FORMULAS.DASHBOARD_PIVOT_TURNO_SELECT === 'select B, sum(L) group by B pivot C',
+    'FORMULA pivot turno must be select B, sum(L) group by B pivot C.');
+  conerasAssert_(typeof conerasBuildDashboardPivotQuery_ === 'function',
+    'Helper conerasBuildDashboardPivotQuery_ must exist.');
+  conerasAssert_(typeof conerasDashboardChartTitle_ === 'function',
+    'Helper conerasDashboardChartTitle_ must exist.');
+  conerasAssert_(typeof conerasUpdateDashboardTitles_ === 'function',
+    'Helper conerasUpdateDashboardTitles_ must exist.');
+  const pivotTitulo = conerasBuildDashboardPivotQuery_('F');
+  const pivotMaquina = conerasBuildDashboardPivotQuery_('D');
+  const pivotTurno = conerasBuildDashboardPivotQuery_('C');
+  conerasAssert_(pivotTitulo.indexOf('select B, sum(L) where B is not null') !== -1 && pivotTitulo.indexOf('group by B pivot F') !== -1,
+    'Pivot titulo must query select B, sum(L) group by B pivot F.');
+  conerasAssert_(pivotMaquina.indexOf('select B, sum(L) where B is not null') !== -1 && pivotMaquina.indexOf('group by B pivot D') !== -1,
+    'Pivot maquina must query select B, sum(L) group by B pivot D.');
+  conerasAssert_(pivotTurno.indexOf('select B, sum(L) where B is not null') !== -1 && pivotTurno.indexOf('group by B pivot C') !== -1,
+    'Pivot turno must query select B, sum(L) group by B pivot C.');
+  conerasAssert_(pivotTitulo.indexOf('IF($B5="Fecha"," and B is null",') !== -1,
+    'Pivot temporal must blank for Fecha via and B is null, active for Semana/Mes.');
+  conerasAssert_(pivotTitulo.indexOf('TEXT(TODAY()-6,"yyyy-MM-dd")') !== -1 && pivotTitulo.indexOf('EOMONTH(TODAY(),0)') !== -1,
+    'Pivot must use same rolling Semana/Mes predicates as daily.');
+  conerasAssert_(pivotTitulo.indexOf('IF($B4="Todos","","') !== -1 && pivotTitulo.indexOf('IF($B9="Todos","","') !== -1 && pivotTitulo.indexOf('IF($B7="Todos","","') !== -1,
+    'Pivot Todos must omit predicates for Turno B4, Maquina B9, Supervisor B7.');
+  conerasAssert_(pivotTitulo.indexOf('IFERROR(QUERY(db_coneras!A:P,"') !== -1 && pivotTitulo.indexOf('",1),"")') !== -1,
+    'Pivot must be wrapped with IFERROR(QUERY(...,1),"") for empty handling.');
+  conerasAssert_(pivotTitulo.indexOf('QUERY(db_coneras!A:P,"') !== -1 && pivotMaquina.indexOf('QUERY(db_coneras!A:P,"') !== -1 && pivotTurno.indexOf('QUERY(db_coneras!A:P,"') !== -1,
+    'All pivots must query db_coneras!A:P.');
+  conerasAssert_(pivotTitulo.indexOf(' and B >= \'') !== -1 && pivotTitulo.indexOf(' and B >= date \'') === -1,
+    'Pivot must use string B >= \'...\' without date keyword.');
+  conerasAssert_(pivotTitulo.indexOf(' and B <= \'') !== -1 && pivotMaquina.indexOf(' and B <= \'') !== -1,
+    'Pivots must use B <= string comparison.');
+  conerasAssert_(pivotTitulo.indexOf(';') === -1 && pivotMaquina.indexOf(';') === -1 && pivotTurno.indexOf(';') === -1,
+    'Pivots must use commas, not semicolons.');
+  conerasAssert_(pivotTitulo.indexOf('SI(') === -1 && pivotTitulo.indexOf('TEXTO') === -1 && pivotTitulo.indexOf('HOY()') === -1 && pivotTitulo.indexOf('SUSTITUIR') === -1,
+    'Pivots must not contain Spanish locale — English IF/TEXT/TODAY/SUBSTITUTE.');
+  // Dynamic title helper must respect Todos and Fecha handling, no Operador
+  const mockDashboardForTitle = {
+    getRange: function (a1) {
+      const map = { 'B5': 'Semana', 'B4': 'Todos', 'B9': 'Autoconer 1', 'B7': 'Todos', 'B6': '' };
+      return { getValue: function () { return map[a1] || ''; } };
+    }
+  };
+  const titleAll = conerasDashboardChartTitle_('Evolución por Título', mockDashboardForTitle);
+  conerasAssert_(titleAll.indexOf('Evolución por Título') !== -1 && titleAll.indexOf('Semana') !== -1,
+    'Dynamic title must contain base and periodo.');
+  conerasAssert_(titleAll.indexOf('Todos') === -1,
+    'Dynamic title must omit Todos filters.');
+  conerasAssert_(titleAll.indexOf('Autoconer 1') !== -1,
+    'Dynamic title must include active Maquina when not Todos.');
+  const mockFecha = {
+    getRange: function (a1) {
+      const map = { 'B5': 'Fecha', 'B4': 'Dia', 'B9': 'Todos', 'B7': 'Todos', 'B6': new Date(2026, 8, 7) };
+      return { getValue: function () { return map[a1] || ''; } };
+    }
+  };
+  const titleFecha = conerasDashboardChartTitle_('Evolución Total Diaria', mockFecha);
+  conerasAssert_(titleFecha.indexOf('Fecha') !== -1 && titleFecha.indexOf('07/09/2026') !== -1,
+    'Dynamic title for Fecha must include formatted picker date.');
+  const pivotNoDate = conerasBuildDashboardPivotQuery_('F');
+  conerasAssert_(pivotNoDate.indexOf(' and B = \'') === -1 || pivotNoDate.indexOf('IF($B5="Fecha"," and B is null"') !== -1,
+    'Pivot queries for time charts must blank for Fecha (and B is null), not filter B = fecha string.');
 }
 
 function conerasTestDashboardSetupDoesNotOverwriteTitles_() {
   const written = [];
+  let writtenCharts = [];
+  const mockValues = { 'B5': 'Semana', 'B4': 'Todos', 'B9': 'Todos', 'B7': 'Todos', 'B6': '' };
   const dashboard = {
     getRange: function (a1) {
       return {
@@ -255,45 +335,63 @@ function conerasTestDashboardSetupDoesNotOverwriteTitles_() {
           }
           return this;
         },
-        getValue: function () { return ''; },
+        getValue: function () { return mockValues[a1] || ''; },
         getA1Notation: function () { return a1; }
       };
     },
     getCharts: function () { return []; },
     newChart: function () {
+      let type = null; let rangeA1 = null; let opts = {};
       return {
-        setChartType: function(){ return this; },
-        addRange: function(){ return this; },
+        setChartType: function(t){ type = t; return this; },
+        addRange: function(r){ rangeA1 = r.getA1Notation(); return this; },
         setPosition: function(){ return this; },
-        setOption: function(){ return this; },
-        build: function(){ return {}; }
+        setOption: function(k,v){ opts[k]=v; return this; },
+        build: function(){ return { type: type, range: rangeA1, opts: opts }; }
       };
     },
-    insertChart: function () {},
-    removeChart: function () {}
+    insertChart: function (chart) { writtenCharts.push(chart); },
+    removeChart: function () {},
+    updateChart: function () {}
   };
   const originalSpreadsheetApp = typeof SpreadsheetApp !== 'undefined' ? SpreadsheetApp : null;
   const originalCharts = typeof Charts !== 'undefined' ? Charts : null;
+  const originalUtilities = typeof Utilities !== 'undefined' ? Utilities : null;
   if (typeof SpreadsheetApp === 'undefined') {
     this.SpreadsheetApp = {
       newDataValidation: function(){ return { requireValueInList:function(){return this;}, requireDate:function(){return this;}, setAllowInvalid:function(){return this;}, setHelpText:function(){return this;}, build:function(){return {};}};},
       BorderStyle: { SOLID: 'SOLID' },
-      ProtectionType: { RANGE: 'RANGE' }
+      ProtectionType: { RANGE: 'RANGE' },
+      getActiveSpreadsheet: function(){ return { getSheetByName:function(){ return null; } }; }
     };
+  } else if (!SpreadsheetApp.getActiveSpreadsheet) {
+    SpreadsheetApp.getActiveSpreadsheet = function(){ return { getSheetByName:function(){ return null; } }; };
   }
   if (typeof Charts === 'undefined') {
-    this.Charts = { ChartType: { BAR: 'BAR', LINE: 'LINE' } };
+    this.Charts = { ChartType: { BAR: 'BAR', LINE: 'LINE', AREA: 'AREA', COLUMN: 'COLUMN' } };
+  } else {
+    if (!Charts.ChartType.AREA) Charts.ChartType.AREA = 'AREA';
+    if (!Charts.ChartType.COLUMN) Charts.ChartType.COLUMN = 'COLUMN';
   }
-  // Provide minimal SpreadsheetApp.getActiveSpreadsheet stub if needed by conerasEnsureDashboardCharts_
-  // conerasConfigureDashboard_ only uses dashboard arg plus CONERAS_CONFIG + builders.
+  if (typeof Utilities === 'undefined') {
+    this.Utilities = { formatDate: function(){ return '07/09/2026'; } };
+  }
+  // Provide Logger if missing
+  if (typeof Logger === 'undefined') this.Logger = { log: function(){} };
   conerasConfigureDashboard_(dashboard);
   const hasF7 = written.some(function (entry) { return entry.range === 'F7'; });
   const hasF16 = written.some(function (entry) { return entry.range === 'F16'; });
   const hasK7 = written.some(function (entry) { return entry.range === 'K7'; });
+  const hasO7 = written.some(function (entry) { return entry.range === 'O7'; });
+  const hasAC7 = written.some(function (entry) { return entry.range === 'AC7'; });
+  const hasAI7 = written.some(function (entry) { return entry.range === 'AI7'; });
   const hasE = written.some(function (entry) { return entry.range.charAt(0) === 'E' && Number(entry.range.slice(1)) >= 7 && Number(entry.range.slice(1)) <= 16; });
   conerasAssert_(hasF7, 'Setup must set formula at F7 (first totals row).');
   conerasAssert_(hasF16, 'Setup must set formulas through F16 (last totals row).');
   conerasAssert_(hasK7, 'Setup must still set daily QUERY at K7.');
+  conerasAssert_(hasO7, 'Setup must set pivot QUERY at O7 (Evolución por Título).');
+  conerasAssert_(hasAC7, 'Setup must set pivot QUERY at AC7 (Evolución por Máquina).');
+  conerasAssert_(hasAI7, 'Setup must set pivot QUERY at AI7 (Comparativo por Turno).');
   conerasAssert_(!hasE, 'Setup must never setFormula on E7:E16 (titles are inputs).');
   const f7Formula = written.filter(function (e){ return e.range==='F7'; })[0].formula;
   conerasAssert_(f7Formula.indexOf('E7') !== -1 && f7Formula.indexOf('db_coneras') !== -1,
@@ -305,9 +403,46 @@ function conerasTestDashboardSetupDoesNotOverwriteTitles_() {
     'K7 and F7 formulas must use comma locale, not semicolons.');
   conerasAssert_(f7Formula.indexOf('IFERROR(QUERY(db_coneras!A:P,"') !== -1 && f7Formula.indexOf(',0),0)') !== -1,
     'F7 per-row must use IFERROR(QUERY(...,0),0) with comma locale.');
-  // restore not needed in test harness
+  const o7Formula = written.filter(function (e){ return e.range==='O7'; })[0].formula;
+  const ac7Formula = written.filter(function (e){ return e.range==='AC7'; })[0].formula;
+  const ai7Formula = written.filter(function (e){ return e.range==='AI7'; })[0].formula;
+  conerasAssert_(o7Formula.indexOf('group by B pivot F') !== -1 && o7Formula.indexOf('IFERROR(QUERY(db_coneras!A:P,"') !== -1,
+    'O7 must be pivot F with IFERROR for empty DB.');
+  conerasAssert_(ac7Formula.indexOf('group by B pivot D') !== -1 && ac7Formula.indexOf('IFERROR(QUERY(db_coneras!A:P,"') !== -1,
+    'AC7 must be pivot D with IFERROR.');
+  conerasAssert_(ai7Formula.indexOf('group by B pivot C') !== -1 && ai7Formula.indexOf('IFERROR(QUERY(db_coneras!A:P,"') !== -1,
+    'AI7 must be pivot C with IFERROR.');
+  conerasAssert_(o7Formula.indexOf('IF($B5="Fecha"," and B is null"') !== -1,
+    'O7 temporal must blank for Fecha and handle Semana/Mes.');
+  conerasAssert_(ac7Formula.indexOf('IF($B4="Todos","","') !== -1 && o7Formula.indexOf('IF($B9="Todos","","') !== -1 && ai7Formula.indexOf('IF($B7="Todos","","') !== -1,
+    'Pivots must handle Todos for Turno B4, Maquina B9, Supervisor B7.');
+  conerasAssert_(o7Formula.indexOf(';') === -1 && ac7Formula.indexOf(';') === -1 && ai7Formula.indexOf(';') === -1,
+    'Pivot formulas must use comma locale, not semicolons.');
+  conerasAssert_(o7Formula.indexOf(' and B >= \'') !== -1 && o7Formula.indexOf(' and B >= date \'') === -1,
+    'Pivot must use string B comparison without date keyword.');
+  // Chart checks: 5 charts total (E7:F bar + 4 time charts)
+  conerasAssert_(writtenCharts.length === 5, 'Setup must create 5 charts: E7:F bar + K7,O7,AC7,AI7.');
+  const ranges = writtenCharts.map(function(c){ return c.range; });
+  conerasAssert_(ranges.indexOf('E7:F') !== -1, 'Must have chart for E7:F Peso Neto por Título.');
+  conerasAssert_(ranges.indexOf('K7:L') !== -1, 'Must have chart for K7:L Evolución Total Diaria.');
+  conerasAssert_(ranges.indexOf('O7:AA') !== -1, 'Must have chart for O7:AA Evolución por Título.');
+  conerasAssert_(ranges.indexOf('AC7:AG') !== -1, 'Must have chart for AC7:AG Evolución por Máquina.');
+  conerasAssert_(ranges.indexOf('AI7:AL') !== -1, 'Must have chart for AI7:AL Comparativo por Turno.');
+  const k7Chart = writtenCharts.filter(function(c){ return c.range==='K7:L'; })[0];
+  conerasAssert_(k7Chart.type === 'LINE' || k7Chart.type === Charts.ChartType.LINE, 'K7 chart must be LINE.');
+  const o7Chart = writtenCharts.filter(function(c){ return c.range==='O7:AA'; })[0];
+  conerasAssert_(o7Chart.type === 'AREA' || o7Chart.type === Charts.ChartType.AREA, 'O7 chart must be AREA stacked.');
+  conerasAssert_(o7Chart.opts.isStacked === true, 'O7 area chart must be stacked.');
+  const ac7Chart = writtenCharts.filter(function(c){ return c.range==='AC7:AG'; })[0];
+  conerasAssert_(ac7Chart.type === 'LINE' || ac7Chart.type === Charts.ChartType.LINE, 'AC7 chart must be LINE multi.');
+  const ai7Chart = writtenCharts.filter(function(c){ return c.range==='AI7:AL'; })[0];
+  conerasAssert_(ai7Chart.type === 'COLUMN' || ai7Chart.type === Charts.ChartType.COLUMN, 'AI7 chart must be COLUMN grouped.');
+  // Titles dynamic: ensure they contain suffix and not Todos
+  conerasAssert_(k7Chart.opts.title.indexOf('Evolución Total Diaria') !== -1, 'K7 chart title must be dynamic Evolución Total Diaria.');
+  conerasAssert_(o7Chart.opts.title.indexOf('Evolución por Título') !== -1, 'O7 chart title must be dynamic Evolución por Título.');
   if (originalSpreadsheetApp && typeof SpreadsheetApp !== 'undefined') {}
   if (originalCharts && typeof Charts !== 'undefined') {}
+  if (originalUtilities && typeof Utilities !== 'undefined') {}
 }
 
 function conerasTestForm_(fecha, turno, maquina, supervisor, inputs, nets) {

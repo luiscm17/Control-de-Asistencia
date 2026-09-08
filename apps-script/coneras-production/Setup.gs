@@ -115,12 +115,22 @@ function conerasConfigureDashboard_(dashboard) {
     CONERAS_CONFIG.FORMULAS.DASHBOARD_DAILY_SELECT,
     CONERAS_CONFIG.FORMULAS.DASHBOARD_DAILY_GROUP_BY,
     true));
+  dashboard.getRange(ranges.DASHBOARD_PIVOT_TITULO).setFormula(conerasBuildDashboardPivotQuery_('F'));
+  dashboard.getRange(ranges.DASHBOARD_PIVOT_MAQUINA).setFormula(conerasBuildDashboardPivotQuery_('D'));
+  dashboard.getRange(ranges.DASHBOARD_PIVOT_TURNO).setFormula(conerasBuildDashboardPivotQuery_('C'));
   conerasEnsureDashboardCharts_(dashboard);
+  try { conerasUpdateDashboardTitles_(dashboard); } catch (e) { Logger.log('Dashboard title update skipped: ' + e.message); }
 }
 
 function conerasEnsureDashboardCharts_(dashboard) {
   const ranges = CONERAS_CONFIG.RANGES;
-  const chartRanges = [ranges.DASHBOARD_TOTALS_CHART_RANGE, ranges.DASHBOARD_DAILY_CHART_RANGE];
+  const chartRanges = [
+    ranges.DASHBOARD_TOTALS_CHART_RANGE,
+    ranges.DASHBOARD_DAILY_CHART_RANGE,
+    ranges.DASHBOARD_PIVOT_TITULO_CHART_RANGE,
+    ranges.DASHBOARD_PIVOT_MAQUINA_CHART_RANGE,
+    ranges.DASHBOARD_PIVOT_TURNO_CHART_RANGE
+  ];
   dashboard.getCharts().forEach(function (chart) {
     const isManaged = chart.getRanges().some(function (range) {
       return chartRanges.indexOf(range.getA1Notation()) !== -1;
@@ -137,7 +147,26 @@ function conerasEnsureDashboardCharts_(dashboard) {
     .setChartType(Charts.ChartType.LINE)
     .addRange(dashboard.getRange(ranges.DASHBOARD_DAILY_CHART_RANGE))
     .setPosition(10, 10, 0, 0)
-    .setOption('title', 'Evolución diaria (Semana/Mes)')
+    .setOption('title', conerasDashboardChartTitle_('Evolución Total Diaria', dashboard))
+    .build());
+  dashboard.insertChart(dashboard.newChart()
+    .setChartType(Charts.ChartType.AREA)
+    .addRange(dashboard.getRange(ranges.DASHBOARD_PIVOT_TITULO_CHART_RANGE))
+    .setPosition(26, 10, 0, 0)
+    .setOption('title', conerasDashboardChartTitle_('Evolución por Título', dashboard))
+    .setOption('isStacked', true)
+    .build());
+  dashboard.insertChart(dashboard.newChart()
+    .setChartType(Charts.ChartType.LINE)
+    .addRange(dashboard.getRange(ranges.DASHBOARD_PIVOT_MAQUINA_CHART_RANGE))
+    .setPosition(42, 10, 0, 0)
+    .setOption('title', conerasDashboardChartTitle_('Evolución por Máquina', dashboard))
+    .build());
+  dashboard.insertChart(dashboard.newChart()
+    .setChartType(Charts.ChartType.COLUMN)
+    .addRange(dashboard.getRange(ranges.DASHBOARD_PIVOT_TURNO_CHART_RANGE))
+    .setPosition(58, 10, 0, 0)
+    .setOption('title', conerasDashboardChartTitle_('Comparativo por Turno', dashboard))
     .build());
 }
 

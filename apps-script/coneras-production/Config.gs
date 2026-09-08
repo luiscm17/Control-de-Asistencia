@@ -38,7 +38,13 @@ const CONERAS_CONFIG = Object.freeze({
     DASHBOARD_TOTALS_RANGE: 'F7:F16',
     DASHBOARD_DAILY: 'K7',
     DASHBOARD_TOTALS_CHART_RANGE: 'E7:F',
-    DASHBOARD_DAILY_CHART_RANGE: 'K7:L'
+    DASHBOARD_DAILY_CHART_RANGE: 'K7:L',
+    DASHBOARD_PIVOT_TITULO: 'O7',
+    DASHBOARD_PIVOT_TITULO_CHART_RANGE: 'O7:AA',
+    DASHBOARD_PIVOT_MAQUINA: 'AC7',
+    DASHBOARD_PIVOT_MAQUINA_CHART_RANGE: 'AC7:AG',
+    DASHBOARD_PIVOT_TURNO: 'AI7',
+    DASHBOARD_PIVOT_TURNO_CHART_RANGE: 'AI7:AL'
   }),
   LIMITS: Object.freeze({
     DESCARGAS: 15,
@@ -72,7 +78,10 @@ const CONERAS_CONFIG = Object.freeze({
     NET_WEIGHT_FIRST: '=SI(ESNUMERO(D8),MAX(0,D8-(E8*F8)-G8),"")',
     DASHBOARD_TOTALS_SELECT: 'select sum(L)',
     DASHBOARD_DAILY_SELECT: 'select B, sum(L)',
-    DASHBOARD_DAILY_GROUP_BY: 'B'
+    DASHBOARD_DAILY_GROUP_BY: 'B',
+    DASHBOARD_PIVOT_TITULO_SELECT: 'select B, sum(L) group by B pivot F',
+    DASHBOARD_PIVOT_MAQUINA_SELECT: 'select B, sum(L) group by B pivot D',
+    DASHBOARD_PIVOT_TURNO_SELECT: 'select B, sum(L) group by B pivot C'
   }),
   UI: Object.freeze({
     SAVE_LABEL: '☑ GUARDAR TURNO',
@@ -175,4 +184,77 @@ function conerasBuildDashboardTotalsFormula_(tituloCell) {
   const tituloEscaped = 'SUBSTITUTE(TEXT(' + cell + ',"@"),"\'","\'\'")';
   const tituloPredicate = 'IF(ISNUMBER(' + cell + ')," and F = "&' + cell + '&" "," and F = \'"&' + tituloEscaped + '&"\'")';
   return '=IF(' + cell + '="","",IFERROR(QUERY(db_coneras!A:P,"' + CONERAS_CONFIG.FORMULAS.DASHBOARD_TOTALS_SELECT + ' where B is not null"&' + tituloPredicate + '&' + temporal + '&' + filters + '&" label sum(L) \'\'",0),0))';
+}
+
+function conerasBuildDashboardPivotQuery_(pivotCol) {
+  const ranges = CONERAS_CONFIG.RANGES;
+  const col = String(pivotCol || 'F').trim().toUpperCase();
+  const allowed = { 'F': true, 'D': true, 'C': true };
+  const pivot = allowed[col] ? col : 'F';
+  const temporalPredicate = 'IF($' + ranges.DASHBOARD_PERIODO + '="Fecha"," and B is null",'
+    + 'IF($' + ranges.DASHBOARD_PERIODO + '="Semana"," and B >= \'"&TEXT(TODAY()-6,"yyyy-MM-dd")&"\' and B <= \'"&TEXT(TODAY(),"yyyy-MM-dd")&"\'"," and B >= \'"&TEXT(DATE(YEAR(TODAY()),MONTH(TODAY()),1),"yyyy-MM-dd")&"\' and B <= \'"&TEXT(EOMONTH(TODAY(),0),"yyyy-MM-dd")&"\'"))';
+  const filters = [
+    'IF($' + ranges.DASHBOARD_TURNO + '="Todos",""," and C = \'"&SUBSTITUTE($' + ranges.DASHBOARD_TURNO + ',"\'","\'\'")&"\'")',
+    'IF($' + ranges.DASHBOARD_MAQUINA + '="Todos",""," and D = \'"&SUBSTITUTE($' + ranges.DASHBOARD_MAQUINA + ',"\'","\'\'")&"\'")',
+    'IF($' + ranges.DASHBOARD_SUPERVISOR + '="Todos",""," and M = \'"&SUBSTITUTE($' + ranges.DASHBOARD_SUPERVISOR + ',"\'","\'\'")&"\'")'
+  ].join('&');
+  return '=IFERROR(QUERY(db_coneras!A:P,"select B, sum(L) where B is not null"&'
+    + temporalPredicate + '&' + filters + '&" group by B pivot ' + pivot + '",1),"")';
+}
+
+function conerasDashboardChartTitle_(base, dashboard) {
+  try {
+    const ranges = CONERAS_CONFIG.RANGES;
+    const periodo = dashboard ? String(dashboard.getRange(ranges.DASHBOARD_PERIODO).getValue() || '').trim() : '';
+    const turno = dashboard ? String(dashboard.getRange(ranges.DASHBOARD_TURNO).getValue() || '').trim() : '';
+    const maquina = dashboard ? String(dashboard.getRange(ranges.DASHBOARD_MAQUINA).getValue() || '').trim() : '';
+    const supervisor = dashboard ? String(dashboard.getRange(ranges.DASHBOARD_SUPERVISOR).getValue() || '').trim() : '';
+    const fechaVal = dashboard ? dashboard.getRange(ranges.DASHBOARD_FECHA).getValue() : '';
+    let fechaStr = '';
+    if (periodo === 'Fecha' && fechaVal) {
+      const iso = conerasNormalizeFecha_(fechaVal);
+      if (iso) fechaStr = ' ' + iso.split('-').reverse().join('/');
+      else if (fechaVal instanceof Date && !isNaN(fechaVal.getTime())) {
+        try { fechaStr = ' ' + Utilities.formatDate(fechaVal, CONERAS_CONFIG.TIMEZONE, 'dd/MM/yyyy'); } catch (e) { fechaStr = ''; }
+      }
+    }
+    const activePeriodo = periodo || 'Semana';
+    let suffix = ' — ' + activePeriodo + fechaStr;
+    const extras = [];
+    if (turno && turno !== 'Todos') extras.push(turno);
+    if (maquina && maquina !== 'Todos') extras.push(maquina);
+    if (supervisor && supervisor !== 'Todos') extras.push(supervisor);
+    if (extras.length) suffix += ' · ' + extras.join(' · ');
+    return base + suffix;
+  } catch (e) {
+    return base;
+  }
+}
+
+function conerasUpdateDashboardTitles_(dashboard) {
+  const ss = dashboard ? null : SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = dashboard || conerasGetSheet_(ss, 'DASHBOARD');
+  if (!sheet) return;
+  const ranges = CONERAS_CONFIG.RANGES;
+  const titleMap = {};
+  titleMap[ranges.DASHBOARD_DAILY_CHART_RANGE] = conerasDashboardChartTitle_('Evolución Total Diaria', sheet);
+  titleMap[ranges.DASHBOARD_PIVOT_TITULO_CHART_RANGE] = conerasDashboardChartTitle_('Evolución por Título', sheet);
+  titleMap[ranges.DASHBOARD_PIVOT_MAQUINA_CHART_RANGE] = conerasDashboardChartTitle_('Evolución por Máquina', sheet);
+  titleMap[ranges.DASHBOARD_PIVOT_TURNO_CHART_RANGE] = conerasDashboardChartTitle_('Comparativo por Turno', sheet);
+  sheet.getCharts().forEach(function (chart) {
+    let targetRange = null;
+    chart.getRanges().forEach(function (range) {
+      const a1 = range.getA1Notation();
+      if (titleMap[a1]) targetRange = a1;
+    });
+    if (!targetRange) return;
+    try {
+      if (typeof chart.modify === 'function') {
+        const builder = chart.modify().setOption('title', titleMap[targetRange]);
+        sheet.updateChart(builder.build());
+      }
+    } catch (e) {
+      Logger.log('Unable to update chart title for ' + targetRange + ': ' + e.message);
+    }
+  });
 }
