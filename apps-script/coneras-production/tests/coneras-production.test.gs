@@ -181,16 +181,18 @@ function conerasTestSupervisorNormalizationAndHydrateAndDropdown_() {
   conerasAssert_(String('Dia').toUpperCase() === String('dia').toUpperCase() &&
     String('Autoconer 1').toUpperCase() === String('autoconer 1').toUpperCase(),
     'Hydrate comparison must be case-insensitive for turno and maquina.');
-  // Dashboard queries must use upper(M) for supervisor robustness
+  // Dashboard queries use simple native types — no upper(), no SUBSTITUTE, direct quoted values
   const perTitle = conerasBuildDashboardTotalsFormula_('E7');
-  conerasAssert_(perTitle.indexOf('upper(M) = upper(') !== -1,
-    'Dashboard per-title totals must filter supervisor case-insensitively via upper(M) = upper(...).');
+  conerasAssert_(perTitle.indexOf('upper(') === -1 && perTitle.indexOf('SUBSTITUTE') === -1 && perTitle.indexOf('SUSTITUIR') === -1,
+    'Dashboard per-title must not use upper() or SUBSTITUTE — simple native M filter.');
+  conerasAssert_(perTitle.indexOf(" and M = '\"&$B7&\"'") !== -1 || perTitle.indexOf(' and M = \'"&$B7&"\'') !== -1,
+    'Dashboard per-title must filter supervisor via simple SI($B7="Todos",""," and M = \'\"&$B7&\"\'")');
   const daily = conerasBuildDashboardQuery_(CONERAS_CONFIG.FORMULAS.DASHBOARD_DAILY_SELECT, CONERAS_CONFIG.FORMULAS.DASHBOARD_DAILY_GROUP_BY, true);
-  conerasAssert_(daily.indexOf('upper(M) = upper(') !== -1,
-    'Dashboard daily query must filter supervisor with upper(M).');
+  conerasAssert_(daily.indexOf('upper(') === -1 && daily.indexOf('SUBSTITUTE') === -1,
+    'Dashboard daily must not use upper() or SUBSTITUTE.');
   const pivot = conerasBuildDashboardPivotQuery_('F');
-  conerasAssert_(pivot.indexOf('upper(M) = upper(') !== -1,
-    'Dashboard pivot query must filter supervisor with upper(M).');
+  conerasAssert_(pivot.indexOf('upper(') === -1 && pivot.indexOf('SUBSTITUTE') === -1,
+    'Dashboard pivot must not use upper() or SUBSTITUTE.');
   // Dropdown must contain full supervisor list and enforce allowInvalid false
   const captured = { supervisor: null, allowInvalid: null };
   const mockDashboard = {
@@ -304,33 +306,42 @@ function conerasTestDashboardQueries_() {
     'Chart range must remain E7:F — titles are inputs, totals are formulas.');
   conerasAssert_(CONERAS_CONFIG.RANGES.DASHBOARD_DAILY === 'K7',
     'DASHBOARD_DAILY must remain K7 for the secondary evolution query.');
-  conerasAssert_(perTitle.indexOf('IF(E7="","",') !== -1,
-    'Per-title totals must guard blank titulo with IF(E7="") — English IF consistent with IFERROR.');
-  conerasAssert_(perTitle.indexOf('SUBSTITUTE(TEXT(E7,"@")') !== -1,
-    'Per-title must escape titulo via SUBSTITUTE(TEXT(E7,"@"),... ) for numeric titles like 13/40 — English consistent.');
-  // Ensure no Spanish locale leakage inside the English formula (mixed locale causes "Función desconocida: SI.")
-  conerasAssert_(perTitle.indexOf('SI(') === -1 && perTitle.indexOf('SI.ERROR') === -1 && perTitle.indexOf('SUSTITUIR') === -1 && perTitle.indexOf('TEXTO') === -1 && perTitle.indexOf('ESNUMERO') === -1 && perTitle.indexOf('HOY()') === -1 && perTitle.indexOf('FIN.MES') === -1,
-    'Per-title must not contain Spanish SI/SI.ERROR/ESNUMERO/TEXTO/HOY/FIN.MES — must be all English (IF/ISNUMBER/TEXT/TODAY/EOMONTH) with commas.');
-  conerasAssert_(daily.indexOf('SI(') === -1 && daily.indexOf('TEXTO') === -1 && daily.indexOf('HOY()') === -1 && daily.indexOf('SUSTITUIR') === -1,
-    'Daily must not contain Spanish locale — must be all English IF/TEXT/TODAY/SUBSTITUTE with commas.');
-  conerasAssert_(perTitle.indexOf('select sum(L) where B is not null') !== -1,
-    'Per-title must query db_coneras with select sum(L) filtered by titulo.');
-  conerasAssert_(perTitle.indexOf('SUBSTITUTE(TEXT(E7,"@")') !== -1 && perTitle.indexOf(" and (F = '") !== -1 && perTitle.indexOf('or F =') !== -1,
-    'Per-title must filter titulo robustly via SUBSTITUTE(TEXT(E7,"@")...) and OR (F=\'9\' or F=9) for numeric/text F handling.');
-  conerasAssert_(perTitle.indexOf('IF($B5="Fecha",IF(ISNUMBER($B6)') !== -1 &&
-    perTitle.indexOf('" and B is null"') !== -1,
-    'Per-title Fecha must require a valid picker and otherwise produce empty via B is null.');
-  conerasAssert_(perTitle.indexOf('TODAY()-6') !== -1 && perTitle.indexOf('EOMONTH(TODAY(),0)') !== -1,
-    'Per-title Semana and Mes must use rolling 7-day and calendar-month ranges via TODAY/EOMONTH.');
-  conerasAssert_(perTitle.indexOf('IF($B4="Todos","","') !== -1 &&
-    perTitle.indexOf('IF($B9="Todos","","') !== -1 && perTitle.indexOf('IF($B7="Todos","","') !== -1,
-    'Per-title Todos must omit optional filter predicates for Turno B4, Maquina B9, Supervisor B7.');
-  conerasAssert_(perTitle.indexOf('upper(M) = upper(') !== -1,
-    'Per-title Supervisor filter must be case-insensitive via upper(M) = upper(...).');
+  conerasAssert_(perTitle.indexOf('SI(E7="","",') !== -1,
+    'Per-title totals must guard blank titulo with SI(E7="") — Spanish SI consistent with SI.ERROR.');
+  conerasAssert_(perTitle.indexOf('SUBSTITUTE') === -1 && perTitle.indexOf('SUSTITUIR') === -1 && perTitle.indexOf('TEXT(E7,"@")') === -1 && perTitle.indexOf('TEXTO(E7') === -1,
+    'Per-title must not use SUBSTITUTE/TEXT(E7,"@") — simplified native assumes texto/numero already normalized via guardado/validación.');
+  conerasAssert_(perTitle.indexOf('upper(') === -1 && perTitle.indexOf('UPPER') === -1,
+    'Per-title must not use upper() — supervisor filtering is direct M =\'...\' (native case).');
+  // Spanish locale required (native simple): SI / SI.ERROR / TEXTO / HOY / FECHA / FIN.MES
+  conerasAssert_(perTitle.indexOf('SI(') !== -1 && perTitle.indexOf('SI.ERROR') !== -1 && perTitle.indexOf('TEXTO') !== -1 && perTitle.indexOf('HOY()') !== -1 && perTitle.indexOf('FIN.MES') !== -1,
+    'Per-title must use Spanish SI/SI.ERROR/TEXTO/HOY/FIN.MES with commas (native simple).');
+  conerasAssert_(perTitle.indexOf('IF(') === -1 && perTitle.indexOf('IFERROR') === -1 && perTitle.indexOf('TEXT(') === -1 && perTitle.indexOf('TODAY') === -1 && perTitle.indexOf('EOMONTH') === -1 && perTitle.indexOf('SUBSTITUTE') === -1,
+    'Per-title must not contain English IF/IFERROR/TEXT/TODAY/EOMONTH/SUBSTITUTE — native Spanish.');
+  conerasAssert_(daily.indexOf('SI(') !== -1 && daily.indexOf('SI.ERROR') !== -1 && daily.indexOf('TEXTO') !== -1 && daily.indexOf('HOY()') !== -1,
+    'Daily must use Spanish SI/SI.ERROR/TEXTO/HOY — native simple.');
+  conerasAssert_(daily.indexOf('IF(') === -1 && daily.indexOf('IFERROR') === -1 && daily.indexOf('SUBSTITUTE') === -1 && daily.indexOf('upper(') === -1,
+    'Daily must not contain English IF/IFERROR/SUBSTITUTE/upper — native simple.');
+  conerasAssert_(perTitle.indexOf('select sum(L) where F =') !== -1,
+    'Per-title must query db_coneras with select sum(L) filtered byTitulo via where F = \'"&E7&"\' (simple).');
+  conerasAssert_(perTitle.indexOf(" where F = '\"&E7&\"'") !== -1 || perTitle.indexOf("where F = '\"&E7&\"'") !== -1,
+    'Per-title must filter titulo via simple where F = \'"&E7&"\'  without SUBSTITUTE or OR.');
+  conerasAssert_(perTitle.indexOf("or F =") === -1 && perTitle.indexOf("OR (F") === -1,
+    'Per-title must not use OR (F=\'9\' or F=9) — assumes correct type via texto validation.');
+  conerasAssert_(perTitle.indexOf('SI($B5="Fecha"," and B = date') !== -1,
+    'Per-title Fecha must use SI($B5="Fecha"," and B = date \'"&TEXTO($B6,"yyyy-MM-dd")&"\'" ... ) simple temporal.');
+  conerasAssert_(perTitle.indexOf('TEXTO(HOY()-6,"yyyy-MM-dd")') !== -1 && perTitle.indexOf('FIN.MES(HOY(),0)') !== -1,
+    'Per-title Semana and Mes must use rolling 7-day TEXTO(HOY()-6) and FIN.MES(HOY(),0) native.');
+  conerasAssert_(perTitle.indexOf('TEXTO(FECHA(') !== -1 || perTitle.indexOf('FECHA(AÑO(HOY())') !== -1,
+    'Per-title Mes must use FECHA(AÑO(HOY()),MES(HOY()),1) native.');
+  conerasAssert_(perTitle.indexOf('SI($B4="Todos","","') !== -1 &&
+    perTitle.indexOf('SI($B9="Todos","","') !== -1 && perTitle.indexOf('SI($B7="Todos","","') !== -1,
+    'Per-title Todos must omit optional filter predicates for Turno B4, Maquina B9, Supervisor B7 via SI($B?="Todos",...).');
+  conerasAssert_(perTitle.indexOf(' and C = \'"&$B4&"\'') !== -1 && perTitle.indexOf(' and D = \'"&$B9&"\'') !== -1 && perTitle.indexOf(' and M = \'"&$B7&"\'') !== -1,
+    'Per-title must use direct quoted filters and C/D/M without SUBSTITUTE/upper.');
   conerasAssert_(perTitle.indexOf("label sum(L) ''") !== -1,
     'Per-title must use label sum(L) \'\' for single-value spill.');
-  conerasAssert_(perTitle.indexOf('QUERY(db_coneras!A:P,"') !== -1 && perTitle.indexOf(',0)') !== -1 && perTitle.indexOf('IFERROR') !== -1,
-    'Per-title must use QUERY with headers 0 wrapped in IFERROR (English, comma locale).');
+  conerasAssert_(perTitle.indexOf('QUERY(db_coneras!A:P,"') !== -1 && perTitle.indexOf(',0),0)') !== -1 && perTitle.indexOf('SI.ERROR') !== -1,
+    'Per-title must use QUERY with headers 0 wrapped in SI.ERROR (Spanish, comma locale).');
   conerasAssert_(perTitle.indexOf('E7') !== -1 && perTitle8.indexOf('E8') !== -1 && perTitle8.indexOf('E7') === -1,
     'Per-title must reference its own titulo row — E7 formula must not mention E8 and vice versa.');
   conerasAssert_(perTitle.indexOf('SUMAR.SI') === -1 && perTitle.indexOf('SUMIF') === -1,
@@ -338,23 +349,23 @@ function conerasTestDashboardQueries_() {
   conerasAssert_(daily.indexOf('select B, sum(L) where B is not null') !== -1 &&
     daily.indexOf('group by B') !== -1,
     'Daily must group QUERY results by fecha.');
-  conerasAssert_(daily.indexOf('IF($B5="Fecha"," and B is null",') !== -1,
-    'The daily chart source must be empty for Fecha and active for Semana or Mes.');
-  conerasAssert_(daily.indexOf('upper(M) = upper(') !== -1,
-    'Daily Supervisor filter must be case-insensitive via upper(M).');
-  conerasAssert_(daily.indexOf('IFERROR(QUERY(db_coneras!A:P,"') !== -1 && daily.indexOf('",1),"")') !== -1,
-    'Daily QUERY must be wrapped with IFERROR for empty-db handling (blank not #N/A).');
+  conerasAssert_(daily.indexOf('SI($B5="Fecha"," and B is null",') !== -1,
+    'The daily chart source must be empty for Fecha and active for Semana or Mes via SI($B5="Fecha"," and B is null",...).');
+  conerasAssert_(daily.indexOf('SI($B4="Todos","","') !== -1 && daily.indexOf('SI($B9="Todos","","') !== -1 && daily.indexOf('SI($B7="Todos","","') !== -1,
+    'Daily Todos must omit predicates for Turno B4, Maquina B9, Supervisor B7 via SI(...).');
+  conerasAssert_(daily.indexOf('SI.ERROR(QUERY(db_coneras!A:P,"') !== -1 && daily.indexOf('",1),"")') !== -1,
+    'Daily QUERY must be wrapped with SI.ERROR for empty-db handling (blank not #N/A).');
   conerasAssert_(daily.indexOf('QUERY(db_coneras!A:P,"') !== -1 && daily.indexOf(',1)') !== -1,
     'Daily QUERY must use comma locale: QUERY(...,1) with comma.');
   conerasAssert_(daily.indexOf(';') === -1 && perTitle.indexOf(';') === -1,
-    'Dashboard formulas must use commas, not semicolons (hybrid es-BO sheet expects commas as per H8).');
-  conerasAssert_(daily.indexOf('TEXT(TODAY()-6,"yyyy-MM-dd")') !== -1 &&
-    daily.indexOf('DATE(YEAR(TODAY()),MONTH(TODAY()),1)') !== -1 && daily.indexOf('EOMONTH(TODAY(),0)') !== -1,
-    'Daily must use comma locale for TEXT/DATE/EOMONTH/TODAY (English) — not semicolon.');
-  conerasAssert_(perTitle.indexOf('TEXT($B6,"yyyy-MM-dd")') !== -1,
-    'Per-title must use comma locale for TEXT($B6) (Fecha picker).');
+    'Dashboard formulas must use commas, not semicolons (native es-BO sheet expects commas as per H8).');
+  conerasAssert_(daily.indexOf('TEXTO(HOY()-6,"yyyy-MM-dd")') !== -1 &&
+    daily.indexOf('FECHA(AÑO(HOY()),MES(HOY()),1)') !== -1 && daily.indexOf('FIN.MES(HOY(),0)') !== -1,
+    'Daily must use comma locale for TEXTO/FECHA/FIN.MES/HOY (Spanish) — not semicolon.');
+  conerasAssert_(perTitle.indexOf('TEXTO($B6,"yyyy-MM-dd")') !== -1,
+    'Per-title must use comma locale for TEXTO($B6) (Fecha picker).');
   conerasAssert_(perTitle.indexOf('QUERY(db_coneras!A:P,"') !== -1 && perTitle.indexOf(',0),0)') !== -1,
-    'Per-title must use comma locale: QUERY(...,0) wrapped in IFERROR(...,0).');
+    'Per-title must use comma locale: QUERY(...,0) wrapped in SI.ERROR(...,0).');
   conerasAssert_(CONERAS_CONFIG.RANGES.DASHBOARD_FECHA === 'B6' && CONERAS_CONFIG.RANGES.DASHBOARD_SUPERVISOR === 'B7' &&
     CONERAS_CONFIG.RANGES.DASHBOARD_EFFICIENCY === 'B8' && CONERAS_CONFIG.RANGES.DASHBOARD_MAQUINA === 'B9',
     'Dashboard RANGES must be B4 Turno, B5 Periodo, B6 Fecha, B7 Supervisor, B8 Efficiency, B9 Maquina.');
@@ -400,16 +411,18 @@ function conerasTestDashboardQueries_() {
     'Pivot maquina must query select B, sum(L) group by B pivot D.');
   conerasAssert_(pivotTurno.indexOf('select B, sum(L) where B is not null') !== -1 && pivotTurno.indexOf('group by B pivot C') !== -1,
     'Pivot turno must query select B, sum(L) group by B pivot C.');
-  conerasAssert_(pivotTitulo.indexOf('IF($B5="Fecha"," and B is null",') !== -1,
-    'Pivot temporal must blank for Fecha via and B is null, active for Semana/Mes.');
-  conerasAssert_(pivotTitulo.indexOf('TEXT(TODAY()-6,"yyyy-MM-dd")') !== -1 && pivotTitulo.indexOf('EOMONTH(TODAY(),0)') !== -1,
-    'Pivot must use same rolling Semana/Mes predicates as daily.');
-  conerasAssert_(pivotTitulo.indexOf('IF($B4="Todos","","') !== -1 && pivotTitulo.indexOf('IF($B9="Todos","","') !== -1 && pivotTitulo.indexOf('IF($B7="Todos","","') !== -1,
-    'Pivot Todos must omit predicates for Turno B4, Maquina B9, Supervisor B7.');
-  conerasAssert_(pivotTitulo.indexOf('upper(M) = upper(') !== -1,
-    'Pivot Supervisor filter must be case-insensitive via upper(M).');
-  conerasAssert_(pivotTitulo.indexOf('IFERROR(QUERY(db_coneras!A:P,"') !== -1 && pivotTitulo.indexOf('",1),"")') !== -1,
-    'Pivot must be wrapped with IFERROR(QUERY(...,1),"") for empty handling.');
+  conerasAssert_(pivotTitulo.indexOf('SI($B5="Fecha"," and B is null",') !== -1,
+    'Pivot temporal must blank for Fecha via SI($B5="Fecha"," and B is null",... ) Spanish.');
+  conerasAssert_(pivotTitulo.indexOf('TEXTO(HOY()-6,"yyyy-MM-dd")') !== -1 && pivotTitulo.indexOf('FIN.MES(HOY(),0)') !== -1 && pivotTitulo.indexOf('FECHA(AÑO(HOY())') !== -1,
+    'Pivot must use same rolling Semana/Mes predicates as daily via TEXTO(HOY()-6) / FIN.MES native.');
+  conerasAssert_(pivotTitulo.indexOf('SI($B4="Todos","","') !== -1 && pivotTitulo.indexOf('SI($B9="Todos","","') !== -1 && pivotTitulo.indexOf('SI($B7="Todos","","') !== -1,
+    'Pivot Todos must omit predicates for Turno B4, Maquina B9, Supervisor B7 via SI($B?="Todos",...).');
+  conerasAssert_(pivotTitulo.indexOf('upper(') === -1 && pivotTitulo.indexOf('SUBSTITUTE') === -1 && pivotTitulo.indexOf('SUSTITUIR') === -1,
+    'Pivot must not use upper() or SUBSTITUTE — simple native M/C/D filters.');
+  conerasAssert_(pivotTitulo.indexOf(' and M = \'"&$B7&"\'') !== -1,
+    'Pivot Supervisor filter must be simple and M = \'"&$B7&"\' without upper.');
+  conerasAssert_(pivotTitulo.indexOf('SI.ERROR(QUERY(db_coneras!A:P,"') !== -1 && pivotTitulo.indexOf('",1),"")') !== -1,
+    'Pivot must be wrapped with SI.ERROR(QUERY(...,1),"") for empty handling (Spanish).');
   conerasAssert_(pivotTitulo.indexOf('QUERY(db_coneras!A:P,"') !== -1 && pivotMaquina.indexOf('QUERY(db_coneras!A:P,"') !== -1 && pivotTurno.indexOf('QUERY(db_coneras!A:P,"') !== -1,
     'All pivots must query db_coneras!A:P.');
   conerasAssert_(pivotTitulo.indexOf(' and B >= date \'') !== -1,
@@ -418,8 +431,10 @@ function conerasTestDashboardQueries_() {
     'Pivots must use B <= date \'...\' DATE comparison.');
   conerasAssert_(pivotTitulo.indexOf(';') === -1 && pivotMaquina.indexOf(';') === -1 && pivotTurno.indexOf(';') === -1,
     'Pivots must use commas, not semicolons.');
-  conerasAssert_(pivotTitulo.indexOf('SI(') === -1 && pivotTitulo.indexOf('TEXTO') === -1 && pivotTitulo.indexOf('HOY()') === -1 && pivotTitulo.indexOf('SUSTITUIR') === -1,
-    'Pivots must not contain Spanish locale — English IF/TEXT/TODAY/SUBSTITUTE.');
+  conerasAssert_(pivotTitulo.indexOf('SI(') !== -1 && pivotTitulo.indexOf('SI.ERROR') !== -1 && pivotTitulo.indexOf('TEXTO') !== -1 && pivotTitulo.indexOf('HOY()') !== -1,
+    'Pivots must use Spanish SI/SI.ERROR/TEXTO/HOY — native simple.');
+  conerasAssert_(pivotTitulo.indexOf('IF(') === -1 && pivotTitulo.indexOf('IFERROR') === -1 && pivotTitulo.indexOf('SUBSTITUTE') === -1 && pivotTitulo.indexOf('TEXT(') === -1 && pivotTitulo.indexOf('TODAY') === -1,
+    'Pivots must not contain English IF/IFERROR/SUBSTITUTE/TEXT/TODAY — native Spanish.');
   // Dynamic title helper must respect Todos and Fecha handling, no Operador
   const mockDashboardForTitle = {
     getRange: function (a1) {
@@ -444,8 +459,8 @@ function conerasTestDashboardQueries_() {
   conerasAssert_(titleFecha.indexOf('Fecha') !== -1 && titleFecha.indexOf('07/09/2026') !== -1,
     'Dynamic title for Fecha must include formatted picker date.');
   const pivotNoDate = conerasBuildDashboardPivotQuery_('F');
-  conerasAssert_((pivotNoDate.indexOf(' and B = \'') === -1 && pivotNoDate.indexOf(' and B = date \'') === -1) || pivotNoDate.indexOf('IF($B5="Fecha"," and B is null"') !== -1,
-    'Pivot queries for time charts must blank for Fecha (and B is null), not filter B = fecha DATE/string.');
+  conerasAssert_((pivotNoDate.indexOf(' and B = \'') === -1 && pivotNoDate.indexOf(' and B = date \'') === -1) || pivotNoDate.indexOf('SI($B5="Fecha"," and B is null"') !== -1,
+    'Pivot queries for time charts must blank for Fecha via SI($B5="Fecha"," and B is null",...), not filter B = fecha.');
 }
 
 function conerasTestDashboardSetupDoesNotOverwriteTitles_() {
@@ -527,25 +542,35 @@ function conerasTestDashboardSetupDoesNotOverwriteTitles_() {
   conerasAssert_(f7Formula.indexOf('E7') !== -1 && f7Formula.indexOf('db_coneras') !== -1,
     'F7 formula must reference E7 and query db_coneras.');
   const k7Formula = written.filter(function (e){ return e.range==='K7'; })[0].formula;
-  conerasAssert_(k7Formula.indexOf('IFERROR(QUERY(db_coneras!A:P,"') !== -1,
-    'K7 daily must be wrapped with IFERROR for empty handling (SI.ERROR unknown).');
+  conerasAssert_(k7Formula.indexOf('SI.ERROR(QUERY(db_coneras!A:P,"') !== -1,
+    'K7 daily must be wrapped with SI.ERROR for empty handling (native Spanish).');
+  conerasAssert_(k7Formula.indexOf('SUBSTITUTE') === -1 && k7Formula.indexOf('upper(') === -1,
+    'K7 must not use SUBSTITUTE or upper — simplified native.');
   conerasAssert_(k7Formula.indexOf(';') === -1,
     'K7 and F7 formulas must use comma locale, not semicolons.');
-  conerasAssert_(f7Formula.indexOf('IFERROR(QUERY(db_coneras!A:P,"') !== -1 && f7Formula.indexOf(',0),0)') !== -1,
-    'F7 per-row must use IFERROR(QUERY(...,0),0) with comma locale.');
+  conerasAssert_(f7Formula.indexOf('SI.ERROR(QUERY(db_coneras!A:P,"') !== -1 && f7Formula.indexOf(',0),0)') !== -1,
+    'F7 per-row must use SI.ERROR(QUERY(...,0),0) with comma locale (native).');
+  conerasAssert_(f7Formula.indexOf('SUBSTITUTE') === -1 && f7Formula.indexOf('upper(') === -1 && f7Formula.indexOf('TEXT(E7') === -1,
+    'F7 must not use SUBSTITUTE/upper/TEXT(E7,"@") — simplified native where F = \'"&E7&"\' .');
+  conerasAssert_(f7Formula.indexOf(" where F = '\"&E7&\"'") !== -1,
+    'F7 must use simple where F = \'"&E7&"\' without OR.');
   const o7Formula = written.filter(function (e){ return e.range==='O7'; })[0].formula;
   const ac7Formula = written.filter(function (e){ return e.range==='AC7'; })[0].formula;
   const ai7Formula = written.filter(function (e){ return e.range==='AI7'; })[0].formula;
-  conerasAssert_(o7Formula.indexOf('group by B pivot F') !== -1 && o7Formula.indexOf('IFERROR(QUERY(db_coneras!A:P,"') !== -1,
-    'O7 must be pivot F with IFERROR for empty DB.');
-  conerasAssert_(ac7Formula.indexOf('group by B pivot D') !== -1 && ac7Formula.indexOf('IFERROR(QUERY(db_coneras!A:P,"') !== -1,
-    'AC7 must be pivot D with IFERROR.');
-  conerasAssert_(ai7Formula.indexOf('group by B pivot C') !== -1 && ai7Formula.indexOf('IFERROR(QUERY(db_coneras!A:P,"') !== -1,
-    'AI7 must be pivot C with IFERROR.');
-  conerasAssert_(o7Formula.indexOf('IF($B5="Fecha"," and B is null"') !== -1,
-    'O7 temporal must blank for Fecha and handle Semana/Mes.');
-  conerasAssert_(ac7Formula.indexOf('IF($B4="Todos","","') !== -1 && o7Formula.indexOf('IF($B9="Todos","","') !== -1 && ai7Formula.indexOf('IF($B7="Todos","","') !== -1,
-    'Pivots must handle Todos for Turno B4, Maquina B9, Supervisor B7.');
+  conerasAssert_(o7Formula.indexOf('group by B pivot F') !== -1 && o7Formula.indexOf('SI.ERROR(QUERY(db_coneras!A:P,"') !== -1,
+    'O7 must be pivot F with SI.ERROR for empty DB (native).');
+  conerasAssert_(ac7Formula.indexOf('group by B pivot D') !== -1 && ac7Formula.indexOf('SI.ERROR(QUERY(db_coneras!A:P,"') !== -1,
+    'AC7 must be pivot D with SI.ERROR.');
+  conerasAssert_(ai7Formula.indexOf('group by B pivot C') !== -1 && ai7Formula.indexOf('SI.ERROR(QUERY(db_coneras!A:P,"') !== -1,
+    'AI7 must be pivot C with SI.ERROR.');
+  conerasAssert_(o7Formula.indexOf('SI($B5="Fecha"," and B is null"') !== -1,
+    'O7 temporal must blank for Fecha via SI($B5="Fecha"," and B is null",...) Spanish.');
+  conerasAssert_(o7Formula.indexOf('TEXTO(HOY()-6') !== -1 && o7Formula.indexOf('FIN.MES(HOY(),0)') !== -1,
+    'O7 must use native TEXTO(HOY()-6) / FIN.MES for Semana/Mes.');
+  conerasAssert_(ac7Formula.indexOf('SI($B4="Todos","","') !== -1 && o7Formula.indexOf('SI($B9="Todos","","') !== -1 && ai7Formula.indexOf('SI($B7="Todos","","') !== -1,
+    'Pivots must handle Todos for Turno B4, Maquina B9, Supervisor B7 via SI(...).');
+  conerasAssert_(o7Formula.indexOf('SUBSTITUTE') === -1 && o7Formula.indexOf('upper(') === -1,
+    'Pivots must not use SUBSTITUTE/upper — simplified native.');
   conerasAssert_(o7Formula.indexOf(';') === -1 && ac7Formula.indexOf(';') === -1 && ai7Formula.indexOf(';') === -1,
     'Pivot formulas must use comma locale, not semicolons.');
   conerasAssert_(o7Formula.indexOf(' and B >= date \'') !== -1,
