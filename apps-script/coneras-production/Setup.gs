@@ -29,7 +29,7 @@ function conerasConfigureDashboard_(dashboard) {
     ['Periodo', ranges.DASHBOARD_PERIODO, CONERAS_CONFIG.DASHBOARD.PERIODO_VALUES, 'Fecha'],
     ['Turno', ranges.DASHBOARD_TURNO, ['Todos'].concat(CONERAS_CONFIG.TURNO_VALUES), 'Todos'],
     ['Máquina', ranges.DASHBOARD_MAQUINA, ['Todos'].concat(CONERAS_CONFIG.MAQUINA_VALUES), 'Todos'],
-    ['Supervisor', ranges.DASHBOARD_SUPERVISOR, ['Todos'], 'Todos']
+    ['Supervisor', ranges.DASHBOARD_SUPERVISOR, ['Todos', 'JUNIOR', 'PABLO', 'RONDI'], 'Todos']
   ];
   controls.forEach(function (control) {
     const valueRange = dashboard.getRange(control[1]);

@@ -163,7 +163,7 @@ function conerasBuildDashboardQuery_(selectClause, groupBy, emptyForFecha) {
   const filters = [
     'IF($' + ranges.DASHBOARD_TURNO + '="Todos",""," and C = \'"&SUBSTITUTE($' + ranges.DASHBOARD_TURNO + ',"\'","\'\'")&"\'")',
     'IF($' + ranges.DASHBOARD_MAQUINA + '="Todos",""," and D = \'"&SUBSTITUTE($' + ranges.DASHBOARD_MAQUINA + ',"\'","\'\'")&"\'")',
-    'IF($' + ranges.DASHBOARD_SUPERVISOR + '="Todos",""," and M = \'"&SUBSTITUTE($' + ranges.DASHBOARD_SUPERVISOR + ',"\'","\'\'")&"\'")'
+    'IF($' + ranges.DASHBOARD_SUPERVISOR + '="Todos",""," and upper(M) = upper(\'"&SUBSTITUTE($' + ranges.DASHBOARD_SUPERVISOR + ',"\'","\'\'")&"\')")'
   ].join('&');
   const label = groupBy === 'F'
     ? " label F 'Título', sum(L) 'Peso Neto'"
@@ -179,7 +179,7 @@ function conerasBuildDashboardTotalsFormula_(tituloCell) {
   const filters = [
     'IF($' + ranges.DASHBOARD_TURNO + '="Todos",""," and C = \'"&SUBSTITUTE($' + ranges.DASHBOARD_TURNO + ',"\'","\'\'")&"\'")',
     'IF($' + ranges.DASHBOARD_MAQUINA + '="Todos",""," and D = \'"&SUBSTITUTE($' + ranges.DASHBOARD_MAQUINA + ',"\'","\'\'")&"\'")',
-    'IF($' + ranges.DASHBOARD_SUPERVISOR + '="Todos",""," and M = \'"&SUBSTITUTE($' + ranges.DASHBOARD_SUPERVISOR + ',"\'","\'\'")&"\'")'
+    'IF($' + ranges.DASHBOARD_SUPERVISOR + '="Todos",""," and upper(M) = upper(\'"&SUBSTITUTE($' + ranges.DASHBOARD_SUPERVISOR + ',"\'","\'\'")&"\')")'
   ].join('&');
   const tituloEscaped = 'SUBSTITUTE(TEXT(' + cell + ',"@"),"\'","\'\'")';
   const tituloPredicate = 'IF(ISNUMBER(' + cell + ')," and F = "&' + cell + '&" "," and F = \'"&' + tituloEscaped + '&"\'")';
@@ -196,7 +196,7 @@ function conerasBuildDashboardPivotQuery_(pivotCol) {
   const filters = [
     'IF($' + ranges.DASHBOARD_TURNO + '="Todos",""," and C = \'"&SUBSTITUTE($' + ranges.DASHBOARD_TURNO + ',"\'","\'\'")&"\'")',
     'IF($' + ranges.DASHBOARD_MAQUINA + '="Todos",""," and D = \'"&SUBSTITUTE($' + ranges.DASHBOARD_MAQUINA + ',"\'","\'\'")&"\'")',
-    'IF($' + ranges.DASHBOARD_SUPERVISOR + '="Todos",""," and M = \'"&SUBSTITUTE($' + ranges.DASHBOARD_SUPERVISOR + ',"\'","\'\'")&"\'")'
+    'IF($' + ranges.DASHBOARD_SUPERVISOR + '="Todos",""," and upper(M) = upper(\'"&SUBSTITUTE($' + ranges.DASHBOARD_SUPERVISOR + ',"\'","\'\'")&"\')")'
   ].join('&');
   return '=IFERROR(QUERY(db_coneras!A:P,"select B, sum(L) where B is not null"&'
     + temporalPredicate + '&' + filters + '&" group by B pivot ' + pivot + '",1),"")';

@@ -64,6 +64,10 @@ function conerasReadSnapshot_(form) {
   const netDisplays = form.getRange(CONERAS_CONFIG.RANGES.NET_WEIGHT_FORMULAS).getDisplayValues();
   const rows = [];
   const emptyNumbers = [];
+  // Normalize supervisor to uppercase for case-insensitive recovery; also normalize turno/maquina trimming.
+  const turnoNorm = String(metadata[1] || '').trim();
+  const maquinaNorm = String(metadata[2] || '').trim();
+  const supervisorNorm = String(metadata[3] || '').trim().toUpperCase();
   inputs.forEach(function (input, index) {
     const bruto = conerasNumber_(input[2]);
     const descargaNro = index + 1;
@@ -74,19 +78,20 @@ function conerasReadSnapshot_(form) {
     const pesoNeto = conerasNumber_(netDisplays[index][0]);
     if (pesoNeto === null) return;
     const timestamp = conerasAuditTimestamp_();
-    const id = conerasBuildId_(fecha, metadata[1], metadata[2], descargaNro);
+    const id = conerasBuildId_(fecha, turnoNorm, maquinaNorm, descargaNro);
     rows.push({
       id: id,
-      values: [id, fecha, metadata[1], metadata[2], descargaNro,
+      values: [id, fecha, turnoNorm, maquinaNorm, descargaNro,
         input[0], input[1], bruto, conerasNumberOrBlank_(input[3]), conerasNumberOrBlank_(input[4]),
-        conerasNumberOrBlank_(input[5]), Math.round(pesoNeto * 100) / 100, metadata[3], timestamp,
+        conerasNumberOrBlank_(input[5]), Math.round(pesoNeto * 100) / 100, supervisorNorm, timestamp,
         timestamp, conerasEditorEmail_()]
     });
   });
   // displayFecha is derived from the iso fecha string directly — not via Utilities.formatDate / America/La_Paz (audit only).
   var displayFecha = fecha.split('-').reverse().join('/');
   return {
-    valid: true, fecha: fecha, turno: metadata[1], maquina: metadata[2], supervisor: metadata[3],
+    valid: true, fecha: fecha, turno: turnoNorm, maquina: maquinaNorm, supervisor: supervisorNorm,
+    supervisorNorm: supervisorNorm,
     displayFecha: displayFecha,
     rows: rows, emptyNumbers: emptyNumbers, editor: conerasEditorEmail_()
   };
@@ -107,7 +112,8 @@ function conerasHydrate_() {
     CONERAS_CONFIG.LIMITS.DB_COLUMNS).getValues().filter(function (row) {
     return conerasNormalizeFecha_(row[1]) === fecha;
   }).filter(function (row) {
-    return row[2] === turno && row[3] === maquina;
+    return String(row[2]).toUpperCase() === String(turno).toUpperCase() &&
+      String(row[3]).toUpperCase() === String(maquina).toUpperCase();
   }) : [];
   const values = Array.from({ length: CONERAS_CONFIG.LIMITS.DESCARGAS }, function () {
     return ['', '', '', '', '', ''];
