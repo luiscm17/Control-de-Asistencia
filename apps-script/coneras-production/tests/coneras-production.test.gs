@@ -16,27 +16,28 @@ function conerasTestFrozenConfiguration_() {
 }
 
 function conerasTestDateAndIdHelpers_() {
-  // Business date (E5) is a pure calendar date — timezone-agnostic, not America/La_Paz.
-  // Dashboard B filter B = 'yyyy-MM-dd' must match db_coneras!B (plain string yyyy-MM-dd).
+  // Business date (E5) is true DATE (serial) with numberFormat dd/MM/yyyy — sheet already formatted as date.
+  // Dashboard B filter uses `B = date 'yyyy-MM-dd'` date literal to match DATE type.
+  // conerasDateFromKey creates Date at noon to avoid 21:00 shift.
   // Only audit fields (creado/actualizado) use America/La_Paz.
-  conerasAssert_(conerasNormalizeFecha_(new Date(2026, 8, 7)) === '2026-09-07',
-    'Local midnight Date must normalize to iso via getFullYear/getMonth/getDate.');
+  conerasAssert_(conerasNormalizeFecha_(new Date(2026, 8, 7, 12, 0, 0)) === '2026-09-07',
+    'Local noon Date must normalize to iso via getFullYear/getMonth/getDate.');
   conerasAssert_(conerasNormalizeFecha_(new Date(2026, 8, 7, 18, 0, 0)) === '2026-09-07',
     'Date with time on same calendar day must stay same yyyy-MM-dd (timezone-agnostic).');
   conerasAssert_(conerasNormalizeFecha_('07/09/2026') === '2026-09-07',
     'String 07/09/2026 must normalize to iso.');
   conerasAssert_(conerasNormalizeFecha_('31/09/2026') === '', 'Invalid calendar dates must be rejected.');
   conerasAssert_(conerasNormalizeFecha_('2026-09-07') === '2026-09-07',
-    'String yyyy-MM-dd must normalize to iso (stored B as plain string).');
+    'String yyyy-MM-dd must normalize to iso.');
   conerasAssert_(conerasBuildId_('2026-09-07', 'Dia', 'Autoconer 1', 3) ===
     '2026-09-07-DIA-AUTOCONER_1-03', 'ID must preserve the frozen PK format.');
   var d = conerasDateFromKey_('2026-09-07');
-  conerasAssert_(typeof d === 'string' && d === '2026-09-07',
-    'conerasDateFromKey must return plain string yyyy-MM-dd (no Date/timezone) so Sheets displays date-only without 21:00 shift and string QUERY matches.');
+  conerasAssert_(d instanceof Date && !isNaN(d.getTime()) && d.getHours() === 12,
+    'conerasDateFromKey must return Date at noon (12:00) so Sheets displays date-only without 21:00 shift and date literal QUERY matches.');
   conerasAssert_(conerasNormalizeFecha_(d) === '2026-09-07',
-    'String yyyy-MM-dd from conerasDateFromKey must round-trip through conerasNormalizeFecha without shift.');
+    'Date from conerasDateFromKey must round-trip through conerasNormalizeFecha without shift.');
   conerasAssert_(conerasNormalizeFecha_(conerasDateFromKey_('2026-09-07')) === '2026-09-07',
-    'Dashboard B filter date must match stored db_coneras!B string.');
+    'Dashboard B filter date must match stored db_coneras!B DATE.');
 }
 
 function conerasTestFormulaProtectionContract_() {
@@ -105,12 +106,12 @@ function conerasTestBatchAndInputRules_() {
   conerasAssert_(conerasNumber_('') === null && conerasNumber_('not a number') === null,
     'Blank or invalid bruto must be skipped.');
   var dd = conerasDateFromKey_('2026-09-07');
-  conerasAssert_(typeof dd === 'string' && dd === '2026-09-07',
-    'Normalized date must be plain string yyyy-MM-dd (date-only, no time/timezone).');
+  conerasAssert_(dd instanceof Date && !isNaN(dd.getTime()) && dd.getHours() === 12,
+    'Normalized date must be Date at noon (date-only DATE type, no 21:00 shift).');
   conerasAssert_(conerasNormalizeFecha_('2026-09-07') === '2026-09-07' &&
-    conerasNormalizeFecha_(new Date(2026, 8, 7)) === '2026-09-07' &&
-    conerasNormalizeFecha_(new Date(2026, 8, 7, 12, 0, 0)) === '2026-09-07',
-    'Business fecha strings and local Dates must preserve yyyy-MM-dd via timezone-agnostic handling.');
+    conerasNormalizeFecha_(new Date(2026, 8, 7, 12, 0, 0)) === '2026-09-07' &&
+    conerasNormalizeFecha_(conerasDateFromKey_('2026-09-07')) === '2026-09-07',
+    'Business fecha strings and noon Dates must preserve yyyy-MM-dd via timezone-agnostic handling.');
   conerasAssert_(conerasAuditTimestamp_() !== conerasNormalizeFecha_(new Date()),
     'Audit timestamp (yyyy-MM-dd HH:mm:ss America/La_Paz) must remain distinct from business fecha (yyyy-MM-dd timezone-agnostic).');
   conerasAssert_(conerasIsChecked_('VERDADERO') && conerasIsChecked_(true),
@@ -314,8 +315,8 @@ function conerasTestDashboardQueries_() {
     'Daily must not contain Spanish locale — must be all English IF/TEXT/TODAY/SUBSTITUTE with commas.');
   conerasAssert_(perTitle.indexOf('select sum(L) where B is not null') !== -1,
     'Per-title must query db_coneras with select sum(L) filtered by titulo.');
-  conerasAssert_(perTitle.indexOf(' and F = \'"&') !== -1,
-    'Per-title must filter where F equals the row titulo.');
+  conerasAssert_(perTitle.indexOf('SUBSTITUTE(TEXT(E7,"@")') !== -1 && perTitle.indexOf(" and (F = '") !== -1 && perTitle.indexOf('or F =') !== -1,
+    'Per-title must filter titulo robustly via SUBSTITUTE(TEXT(E7,"@")...) and OR (F=\'9\' or F=9) for numeric/text F handling.');
   conerasAssert_(perTitle.indexOf('IF($B5="Fecha",IF(ISNUMBER($B6)') !== -1 &&
     perTitle.indexOf('" and B is null"') !== -1,
     'Per-title Fecha must require a valid picker and otherwise produce empty via B is null.');
@@ -357,14 +358,14 @@ function conerasTestDashboardQueries_() {
   conerasAssert_(CONERAS_CONFIG.RANGES.DASHBOARD_FECHA === 'B6' && CONERAS_CONFIG.RANGES.DASHBOARD_SUPERVISOR === 'B7' &&
     CONERAS_CONFIG.RANGES.DASHBOARD_EFFICIENCY === 'B8' && CONERAS_CONFIG.RANGES.DASHBOARD_MAQUINA === 'B9',
     'Dashboard RANGES must be B4 Turno, B5 Periodo, B6 Fecha, B7 Supervisor, B8 Efficiency, B9 Maquina.');
-  conerasAssert_(perTitle.indexOf(" and B = '") !== -1 && perTitle.indexOf(" and B = date '") === -1,
-    'Per-title must compare B as string ( and B = \'...\' ), not date literal ( and B = date \'...\').');
-  conerasAssert_(perTitle.indexOf(" and B >= '") !== -1 && perTitle.indexOf(" and B >= date '") === -1,
-    'Per-title Semana/Mes must use string range B >= \'...\' without date keyword.');
-  conerasAssert_(daily.indexOf(" and B >= '") !== -1 && daily.indexOf(" and B >= date '") === -1,
-    'Daily must use string range B >= \'...\' without date keyword.');
-  conerasAssert_(perTitle.indexOf(" and B <= '") !== -1 && daily.indexOf(" and B <= '") !== -1,
-    'Both per-title and daily must use B <= \'...\' string comparison.');
+  conerasAssert_(perTitle.indexOf(" and B = date '") !== -1,
+    'Per-title must compare B as DATE via ` and B = date \'...\'` literal.');
+  conerasAssert_(perTitle.indexOf(" and B >= date '") !== -1,
+    'Per-title Semana/Mes must use DATE range B >= date \'...\' with date keyword.');
+  conerasAssert_(daily.indexOf(" and B >= date '") !== -1,
+    'Daily must use DATE range B >= date \'...\' with date keyword.');
+  conerasAssert_(perTitle.indexOf(" and B <= date '") !== -1 && daily.indexOf(" and B <= date '") !== -1,
+    'Both per-title and daily must use B <= date \'...\' DATE comparison.');
   // New pivot RANGES and FORMULAS
   conerasAssert_(CONERAS_CONFIG.RANGES.DASHBOARD_PIVOT_TITULO === 'O7',
     'DASHBOARD_PIVOT_TITULO must be O7 for stacked evolution by titulo.');
@@ -411,10 +412,10 @@ function conerasTestDashboardQueries_() {
     'Pivot must be wrapped with IFERROR(QUERY(...,1),"") for empty handling.');
   conerasAssert_(pivotTitulo.indexOf('QUERY(db_coneras!A:P,"') !== -1 && pivotMaquina.indexOf('QUERY(db_coneras!A:P,"') !== -1 && pivotTurno.indexOf('QUERY(db_coneras!A:P,"') !== -1,
     'All pivots must query db_coneras!A:P.');
-  conerasAssert_(pivotTitulo.indexOf(' and B >= \'') !== -1 && pivotTitulo.indexOf(' and B >= date \'') === -1,
-    'Pivot must use string B >= \'...\' without date keyword.');
-  conerasAssert_(pivotTitulo.indexOf(' and B <= \'') !== -1 && pivotMaquina.indexOf(' and B <= \'') !== -1,
-    'Pivots must use B <= string comparison.');
+  conerasAssert_(pivotTitulo.indexOf(' and B >= date \'') !== -1,
+    'Pivot must use DATE B >= date \'...\' with date keyword.');
+  conerasAssert_(pivotTitulo.indexOf(' and B <= date \'') !== -1 && pivotMaquina.indexOf(' and B <= date \'') !== -1,
+    'Pivots must use B <= date \'...\' DATE comparison.');
   conerasAssert_(pivotTitulo.indexOf(';') === -1 && pivotMaquina.indexOf(';') === -1 && pivotTurno.indexOf(';') === -1,
     'Pivots must use commas, not semicolons.');
   conerasAssert_(pivotTitulo.indexOf('SI(') === -1 && pivotTitulo.indexOf('TEXTO') === -1 && pivotTitulo.indexOf('HOY()') === -1 && pivotTitulo.indexOf('SUSTITUIR') === -1,
@@ -443,8 +444,8 @@ function conerasTestDashboardQueries_() {
   conerasAssert_(titleFecha.indexOf('Fecha') !== -1 && titleFecha.indexOf('07/09/2026') !== -1,
     'Dynamic title for Fecha must include formatted picker date.');
   const pivotNoDate = conerasBuildDashboardPivotQuery_('F');
-  conerasAssert_(pivotNoDate.indexOf(' and B = \'') === -1 || pivotNoDate.indexOf('IF($B5="Fecha"," and B is null"') !== -1,
-    'Pivot queries for time charts must blank for Fecha (and B is null), not filter B = fecha string.');
+  conerasAssert_((pivotNoDate.indexOf(' and B = \'') === -1 && pivotNoDate.indexOf(' and B = date \'') === -1) || pivotNoDate.indexOf('IF($B5="Fecha"," and B is null"') !== -1,
+    'Pivot queries for time charts must blank for Fecha (and B is null), not filter B = fecha DATE/string.');
 }
 
 function conerasTestDashboardSetupDoesNotOverwriteTitles_() {
@@ -547,8 +548,8 @@ function conerasTestDashboardSetupDoesNotOverwriteTitles_() {
     'Pivots must handle Todos for Turno B4, Maquina B9, Supervisor B7.');
   conerasAssert_(o7Formula.indexOf(';') === -1 && ac7Formula.indexOf(';') === -1 && ai7Formula.indexOf(';') === -1,
     'Pivot formulas must use comma locale, not semicolons.');
-  conerasAssert_(o7Formula.indexOf(' and B >= \'') !== -1 && o7Formula.indexOf(' and B >= date \'') === -1,
-    'Pivot must use string B comparison without date keyword.');
+  conerasAssert_(o7Formula.indexOf(' and B >= date \'') !== -1,
+    'Pivot must use DATE B comparison with date keyword.');
   // Chart checks: 5 charts total (E7:F bar + 4 time charts)
   conerasAssert_(writtenCharts.length === 5, 'Setup must create 5 charts: E7:F bar + K7,O7,AC7,AI7.');
   const ranges = writtenCharts.map(function(c){ return c.range; });
@@ -572,6 +573,61 @@ function conerasTestDashboardSetupDoesNotOverwriteTitles_() {
   if (originalSpreadsheetApp && typeof SpreadsheetApp !== 'undefined') {}
   if (originalCharts && typeof Charts !== 'undefined') {}
   if (originalUtilities && typeof Utilities !== 'undefined') {}
+}
+
+function conerasTestDbSheetFormatAndMigration_() {
+  const formats = {};
+  const bValues = [[new Date(2026, 8, 7)], ['2026-09-07'], [new Date(2026, 8, 8)], ['']];
+  let bSetValues = null;
+  const mockSheet = {
+    getRange: function (a1, col, numRows, numCols) {
+      if (typeof a1 === 'string') {
+        if (a1 === 'B2:B' || a1 === 'F2:F') {
+          return { setNumberFormat: function (fmt) { formats[a1] = fmt; return this; } };
+        }
+        if (a1 === CONERAS_CONFIG.RANGES.DB_HEADERS) {
+          return {
+            getValues: function () { return [CONERAS_CONFIG.DB_HEADERS.slice()]; },
+            setValues: function () { return this; },
+            setFontWeight: function () { return this; },
+            setBackground: function () { return this; },
+            getA1Notation: function () { return a1; },
+            protect: function () { return { setDescription: function () { return this; }, setWarningOnly: function () { return this; } }; }
+          };
+        }
+        return { setNumberFormat: function () { return this; }, getValues: function () { return [[]]; }, setValues: function () {}, setFontWeight: function () { return this; }, setBackground: function () { return this; }, getA1Notation: function () { return a1; }, protect: function () { return { setDescription: function () { return this; }, setWarningOnly: function () { return this; } }; } };
+      } else {
+        if (a1 === 2 && col === 2) {
+          return {
+            getValues: function () { return bValues.slice(); },
+            setValues: function (vals) { bSetValues = vals; }
+          };
+        }
+        return { getValues: function () { return [[]]; }, setValues: function () {}, setNumberFormat: function () { return this; } };
+      }
+    },
+    getLastRow: function () { return bValues.length + 1; },
+    setFrozenRows: function () {},
+    getProtections: function () { return []; },
+    insertSheet: function () { return this; }
+  };
+  const mockSpreadsheet = {
+    getSheetByName: function (name) { if (name === CONERAS_CONFIG.SHEETS.DB) return mockSheet; return null; },
+    insertSheet: function () { return mockSheet; }
+  };
+  if (typeof Logger === 'undefined') this.Logger = { log: function () {} };
+  const prevSpreadsheetApp = typeof SpreadsheetApp !== 'undefined' ? SpreadsheetApp : null;
+  if (typeof SpreadsheetApp === 'undefined') {
+    this.SpreadsheetApp = { ProtectionType: { RANGE: 'RANGE' } };
+  }
+  conerasEnsureTableSheet_(mockSpreadsheet, 'DB', 'DB_HEADERS', CONERAS_CONFIG.DB_HEADERS, CONERAS_CONFIG.UI.DB_HEADER_COLOR);
+  conerasAssert_(formats['B2:B'] === 'dd/MM/yyyy', 'DB sheet B2:B must be DATE dd/MM/yyyy for DATE type B with date literal QUERY.');
+  conerasAssert_(formats['F2:F'] === '@', 'DB sheet F2:F must be plain text @ for titulo text handling (F=\'9\' or F=9).');
+  conerasAssert_(bSetValues !== null, 'Migration must normalize string-typed B values (yyyy-MM-dd) to DATE at noon via conerasDateFromKey_.');
+  conerasAssert_(bSetValues[0][0] instanceof Date && conerasNormalizeFecha_(bSetValues[0][0]) === '2026-09-07' && bSetValues[0][0].getHours() === 12, 'Midnight Date 2026-09-07 must be normalized to noon DATE with same iso.');
+  conerasAssert_(bSetValues[1][0] instanceof Date && conerasNormalizeFecha_(bSetValues[1][0]) === '2026-09-07' && bSetValues[1][0].getHours() === 12, 'String 2026-09-07 must be converted to noon DATE.');
+  conerasAssert_(bSetValues[2][0] instanceof Date && conerasNormalizeFecha_(bSetValues[2][0]) === '2026-09-08' && bSetValues[2][0].getHours() === 12, 'Second midnight Date must normalize to 2026-09-08 noon.');
+  if (prevSpreadsheetApp && typeof SpreadsheetApp !== 'undefined') {}
 }
 
 function conerasTestForm_(fecha, turno, maquina, supervisor, inputs, nets) {
@@ -608,7 +664,8 @@ function conerasTestHelpers_() {
     conerasTestSnapshotValidationAndBatchSizes_,
     conerasTestSupervisorNormalizationAndHydrateAndDropdown_,
     conerasTestDashboardQueries_,
-    conerasTestDashboardSetupDoesNotOverwriteTitles_
+    conerasTestDashboardSetupDoesNotOverwriteTitles_,
+    conerasTestDbSheetFormatAndMigration_
   ];
   tests.forEach(function (test) { test(); });
   Logger.log('✅ ' + tests.length + ' Coneras tests passed.');

@@ -81,14 +81,13 @@ function conerasReadSnapshot_(form) {
     const id = conerasBuildId_(fecha, turnoNorm, maquinaNorm, descargaNro);
     rows.push({
       id: id,
-      values: [id, fecha, turnoNorm, maquinaNorm, descargaNro,
+      values: [id, conerasDateFromKey_(fecha), turnoNorm, maquinaNorm, descargaNro,
         input[0], input[1], bruto, conerasNumberOrBlank_(input[3]), conerasNumberOrBlank_(input[4]),
         conerasNumberOrBlank_(input[5]), Math.round(pesoNeto * 100) / 100, supervisorNorm, timestamp,
         timestamp, conerasEditorEmail_()]
     });
   });
-  // displayFecha is derived from the iso fecha string directly — not via Utilities.formatDate / America/La_Paz (audit only).
-  var displayFecha = fecha.split('-').reverse().join('/');
+  var displayFecha = Utilities.formatDate(conerasDateFromKey_(fecha), CONERAS_CONFIG.TIMEZONE, 'dd/MM/yyyy');
   return {
     valid: true, fecha: fecha, turno: turnoNorm, maquina: maquinaNorm, supervisor: supervisorNorm,
     supervisorNorm: supervisorNorm,
@@ -166,9 +165,12 @@ function conerasNumberOrBlank_(value) {
 }
 
 function conerasDateFromKey_(key) {
-  // Business date only — plain calendar date string yyyy-MM-dd, no timezone.
-  // Stored as plain string in db_coneras!B so Sheets displays date-only without
-  // midnight/21:00 shift. Only audit fields (creado/actualizado) use America/La_Paz.
-  // Kept for backward compatibility; prefer using fecha string directly.
-  return String(key || '').trim();
+  const raw = String(key || '').trim();
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return new Date(NaN);
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  // Noon avoids 21:00 shift when sheet interprets midnight in America/La_Paz — keeps display as date-only dd/MM/yyyy.
+  return new Date(year, month - 1, day, 12, 0, 0);
 }

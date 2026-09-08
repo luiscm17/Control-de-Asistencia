@@ -182,12 +182,53 @@ function conerasEnsureTableSheet_(spreadsheet, key, headerRangeKey, headers, col
   conerasEnsureHeaderProtection_(sheet, headerRange);
   if (key === 'DB') {
     try {
-      // Column B (fecha) is stored as plain string yyyy-MM-dd (calendar date only, no timezone).
-      // Plain text avoids midnight/21:00 shifts; string comparison `B = '2026-09-07'` matches.
-      // Only audit columns (creado/actualizado) use America/La_Paz.
-      sheet.getRange('B2:B').setNumberFormat('@');
+      // Column B (fecha) is true DATE (serial) with numberFormat dd/MM/yyyy — sheet already formatted as date.
+      // F (titulo) remains plain text via TEXT(cell,"@") with OR predicate F='9' or F=9.
+      // B queries use `B = date 'yyyy-MM-dd'` literal; store via conerasDateFromKey at noon to avoid 21:00 shift.
+      sheet.getRange('B2:B').setNumberFormat('dd/MM/yyyy');
+      sheet.getRange('F2:F').setNumberFormat('@');
+      // One-time migration: normalize existing string-typed B values (yyyy-MM-dd) to DATE at noon.
+      const lastRow = sheet.getLastRow();
+      if (lastRow > 1) {
+        const bRange = sheet.getRange(2, 2, lastRow - 1, 1);
+        const bValues = bRange.getValues();
+        let changed = false;
+        for (let i = 0; i < bValues.length; i++) {
+          const v = bValues[i][0];
+          if (typeof v === 'string') {
+            const iso = conerasNormalizeFecha_(v);
+            if (iso) {
+              const d = conerasDateFromKey_(iso);
+              if (d instanceof Date && !isNaN(d.getTime())) {
+                bValues[i][0] = d;
+                changed = true;
+              }
+            }
+          } else if (v instanceof Date && !isNaN(v.getTime())) {
+            const iso = conerasNormalizeFecha_(v);
+            if (iso) {
+              const d = conerasDateFromKey_(iso);
+              if (d instanceof Date && !isNaN(d.getTime()) && d.getTime() !== v.getTime()) {
+                bValues[i][0] = d;
+                changed = true;
+              }
+            }
+          } else if (typeof v === 'number' && isFinite(v) && v >= 30000 && v <= 80000) {
+            const dFromSerial = new Date(Math.round((v - 25569) * 86400000));
+            const iso = conerasNormalizeFecha_(dFromSerial);
+            if (iso) {
+              const d = conerasDateFromKey_(iso);
+              if (d instanceof Date && !isNaN(d.getTime())) {
+                bValues[i][0] = d;
+                changed = true;
+              }
+            }
+          }
+        }
+        if (changed) bRange.setValues(bValues);
+      }
     } catch (e) {
-      Logger.log('Unable to set db_coneras fecha format: ' + e.message);
+      Logger.log('Unable to set db_coneras fecha/titulo format or migrate: ' + e.message);
     }
   }
   return sheet;
