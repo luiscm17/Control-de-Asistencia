@@ -4,11 +4,12 @@
 
 function conerasSetup() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const separator = conerasFormulaSeparator_(ss);
   const form = conerasRequireSheet_(ss, 'CONERA');
   conerasEnsureTableSheet_(ss, 'DB', 'DB_HEADERS', CONERAS_CONFIG.DB_HEADERS, CONERAS_CONFIG.UI.DB_HEADER_COLOR);
   conerasEnsureTableSheet_(ss, 'ERRORS', 'ERRORS_HEADERS', CONERAS_CONFIG.ERRORS_HEADERS, CONERAS_CONFIG.UI.ERRORS_HEADER_COLOR);
   conerasConfigureForm_(form);
-  conerasConfigureDashboard_(conerasRequireSheet_(ss, 'DASHBOARD'));
+  conerasConfigureDashboard_(conerasRequireSheet_(ss, 'DASHBOARD'), separator);
   conerasVerifyNativeFormulas_(form);
   conerasEnsureSaveCheckboxTrigger_();
   SpreadsheetApp.flush();
@@ -23,7 +24,8 @@ function conerasEnsureSaveCheckboxTrigger_() {
   if (!exists) ScriptApp.newTrigger(handler).forSpreadsheet(SpreadsheetApp.getActive()).onEdit().create();
 }
 
-function conerasConfigureDashboard_(dashboard) {
+function conerasConfigureDashboard_(dashboard, separator) {
+  separator = separator || ',';
   const ranges = CONERAS_CONFIG.RANGES;
   const controls = [
     ['Periodo', ranges.DASHBOARD_PERIODO, CONERAS_CONFIG.DASHBOARD.PERIODO_VALUES, 'Fecha'],
@@ -109,15 +111,23 @@ function conerasConfigureDashboard_(dashboard) {
   for (let row = totalsStartRow; row <= totalsEndRow; row++) {
     const tituloCell = tituloCol + row;
     const totalsCell = totalsCol + row;
-    dashboard.getRange(totalsCell).setFormula(conerasBuildDashboardTotalsFormula_(tituloCell));
+    dashboard.getRange(totalsCell).setFormula(conerasBuildDashboardTotalsFormula_(tituloCell, separator));
   }
-  dashboard.getRange(ranges.DASHBOARD_DAILY).setFormula(conerasBuildDashboardQuery_(
-    CONERAS_CONFIG.FORMULAS.DASHBOARD_DAILY_SELECT,
-    CONERAS_CONFIG.FORMULAS.DASHBOARD_DAILY_GROUP_BY,
-    true));
-  dashboard.getRange(ranges.DASHBOARD_PIVOT_TITULO).setFormula(conerasBuildDashboardPivotQuery_('F'));
-  dashboard.getRange(ranges.DASHBOARD_PIVOT_MAQUINA).setFormula(conerasBuildDashboardPivotQuery_('D'));
-  dashboard.getRange(ranges.DASHBOARD_PIVOT_TURNO).setFormula(conerasBuildDashboardPivotQuery_('C'));
+  dashboard.getRange('H5:I5').setValues([['Date', 'Net Weight']]);
+  dashboard.getRange('K5:L5').setValues([['Title', 'Net Weight']]);
+  dashboard.getRange('S5:T5').setValues([['Machine', 'Net Weight']]);
+  dashboard.getRange('V5:W5').setValues([['Shift', 'Net Weight']]);
+  for (let row = 6; row <= 36; row++) {
+    const offset = row - 6;
+    dashboard.getRange('H' + row).setFormula('=IF($B$5="Fecha"' + separator + 'IF(' + offset + '=0' + separator + '$B$6' + separator + '""' + ')' + separator + 'IF($B$5="Semana"' + separator + 'TODAY()-6+' + offset + separator + 'DATE(YEAR(TODAY())' + separator + 'MONTH(TODAY())' + separator + '1)+' + offset + '))');
+    dashboard.getRange('I' + row).setFormula('=IF(H' + row + '=""' + separator + '""' + separator + 'SUMPRODUCT((db_coneras!L2:L)*(db_coneras!B2:B>=H' + row + ')*(db_coneras!B2:B<H' + row + '+1)' + conerasDashboardFilterCriteria_() + '))');
+  }
+  dashboard.getRange('K6').setFormula('=IFERROR(SORT(UNIQUE(FILTER(db_coneras!F2:F' + separator + 'db_coneras!F2:F<>"")))' + separator + '"")');
+  for (let row = 6; row <= 20; row++) dashboard.getRange('L' + row).setFormula(conerasBuildDashboardTotalsFormula_('K' + row, separator));
+  dashboard.getRange('S6:S10').setValues(CONERAS_CONFIG.MAQUINA_VALUES.map(function (value) { return [value]; }));
+  dashboard.getRange('V6:V8').setValues(CONERAS_CONFIG.TURNO_VALUES.map(function (value) { return [value]; }));
+  for (let row = 6; row <= 10; row++) dashboard.getRange('T' + row).setFormula(conerasBuildDashboardPivotQuery_('D', separator).replace('S6', 'S' + row));
+  for (let row = 6; row <= 8; row++) dashboard.getRange('W' + row).setFormula(conerasBuildDashboardPivotQuery_('C', separator).replace('V6', 'V' + row));
   conerasEnsureDashboardCharts_(dashboard);
   try { conerasUpdateDashboardTitles_(dashboard); } catch (e) { Logger.log('Dashboard title update skipped: ' + e.message); }
 }

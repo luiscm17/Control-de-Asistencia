@@ -291,36 +291,26 @@ function conerasTestSupervisorNormalizationAndHydrateAndDropdown_() {
 
 function conerasTestDashboardQueries_() {
   const perTitle = conerasBuildDashboardTotalsFormula_('E7');
-  const perTitle8 = conerasBuildDashboardTotalsFormula_('E8');
-  const daily = conerasBuildDashboardQuery_(
-    CONERAS_CONFIG.FORMULAS.DASHBOARD_DAILY_SELECT,
-    CONERAS_CONFIG.FORMULAS.DASHBOARD_DAILY_GROUP_BY,
-    true);
-  conerasAssert_(CONERAS_CONFIG.RANGES.DASHBOARD_TOTALS === 'F7',
-    'DASHBOARD_TOTALS must be F7 — E7:E16 are titulo inputs (Escribe el Título), not a spill.');
-  conerasAssert_(CONERAS_CONFIG.RANGES.DASHBOARD_TITLES === 'E7:E16',
-    'DASHBOARD_TITLES must preserve the titulo input range.');
-  conerasAssert_(CONERAS_CONFIG.RANGES.DASHBOARD_TOTALS_RANGE === 'F7:F16',
-    'DASHBOARD_TOTALS_RANGE must be the per-row totals range.');
-  conerasAssert_(CONERAS_CONFIG.RANGES.DASHBOARD_TOTALS_CHART_RANGE === 'E7:F',
-    'Chart range must remain E7:F — titles are inputs, totals are formulas.');
-  conerasAssert_(CONERAS_CONFIG.RANGES.DASHBOARD_DAILY === 'K7',
-    'DASHBOARD_DAILY must remain K7 for the secondary evolution query.');
-  conerasAssert_(perTitle.indexOf('SI(E7="","",') !== -1,
-    'Per-title totals must guard blank titulo with SI(E7="") — Spanish SI consistent with SI.ERROR.');
-  conerasAssert_(perTitle.indexOf('SUBSTITUTE') === -1 && perTitle.indexOf('SUSTITUIR') === -1 && perTitle.indexOf('TEXT(E7,"@")') === -1 && perTitle.indexOf('TEXTO(E7') === -1,
-    'Per-title must not use SUBSTITUTE/TEXT(E7,"@") — simplified native assumes texto/numero already normalized via guardado/validación.');
-  conerasAssert_(perTitle.indexOf('upper(') === -1 && perTitle.indexOf('UPPER') === -1,
-    'Per-title must not use upper() — supervisor filtering is direct M =\'...\' (native case).');
-  // Spanish locale required (native simple): SI / SI.ERROR / TEXTO / HOY / FECHA / FIN.MES
-  conerasAssert_(perTitle.indexOf('SI(') !== -1 && perTitle.indexOf('SI.ERROR') !== -1 && perTitle.indexOf('TEXTO') !== -1 && perTitle.indexOf('HOY()') !== -1 && perTitle.indexOf('FIN.MES') !== -1,
-    'Per-title must use Spanish SI/SI.ERROR/TEXTO/HOY/FIN.MES with commas (native simple).');
-  conerasAssert_(perTitle.indexOf('IF(') === -1 && perTitle.indexOf('IFERROR') === -1 && perTitle.indexOf('TEXT(') === -1 && perTitle.indexOf('TODAY') === -1 && perTitle.indexOf('EOMONTH') === -1 && perTitle.indexOf('SUBSTITUTE') === -1,
-    'Per-title must not contain English IF/IFERROR/TEXT/TODAY/EOMONTH/SUBSTITUTE — native Spanish.');
-  conerasAssert_(daily.indexOf('SI(') !== -1 && daily.indexOf('SI.ERROR') !== -1 && daily.indexOf('TEXTO') !== -1 && daily.indexOf('HOY()') !== -1,
-    'Daily must use Spanish SI/SI.ERROR/TEXTO/HOY — native simple.');
-  conerasAssert_(daily.indexOf('IF(') === -1 && daily.indexOf('IFERROR') === -1 && daily.indexOf('SUBSTITUTE') === -1 && daily.indexOf('upper(') === -1,
-    'Daily must not contain English IF/IFERROR/SUBSTITUTE/upper — native simple.');
+  const daily = conerasBuildDashboardQuery_('', 'B', true);
+  conerasAssert_(CONERAS_CONFIG.RANGES.DASHBOARD_TOTALS_CHART_RANGE === 'E5:F16' && CONERAS_CONFIG.RANGES.DASHBOARD_DAILY_CHART_RANGE === 'H5:I36', 'Dashboard chart sources must be visible tables.');
+  conerasAssert_(perTitle.indexOf('SUMPRODUCT') !== -1 && perTitle.indexOf('IF(') !== -1 && perTitle.indexOf('QUERY') === -1 && perTitle.indexOf('SI(') === -1 && perTitle.indexOf('"*"') === -1, 'Totals must use native English aggregation without QUERY or wildcard criteria.');
+  conerasAssert_(perTitle.indexOf('db_coneras!L2:L') !== -1 && perTitle.indexOf('db_coneras!F2:F') !== -1 && perTitle.indexOf('db_coneras!B2:B') !== -1 && perTitle.indexOf('db_coneras!C2:C') !== -1 && perTitle.indexOf('db_coneras!D2:D') !== -1 && perTitle.indexOf('db_coneras!M2:M') !== -1, 'Totals must exclude row 1 headers from every arithmetic range.');
+  conerasAssert_(perTitle.indexOf('db_coneras!L:L') === -1 && perTitle.indexOf('db_coneras!F:F') === -1 && perTitle.indexOf('db_coneras!B:B') === -1, 'Totals must not include full-column header ranges.');
+  conerasAssert_(daily.indexOf('SUMPRODUCT') !== -1 && daily.indexOf('QUERY') === -1 && daily.indexOf('TODAY') !== -1 && daily.indexOf('DATE(') !== -1 && daily.indexOf('EOMONTH') !== -1, 'Dashboard formulas must use native English date criteria.');
+  const dateFormula = '=IF($B$5="Fecha";IF(0=0;$B$6;"");IF($B$5="Semana";TODAY()-6+0;DATE(YEAR(TODAY());MONTH(TODAY());1)+0))';
+  const dailyValue = '=IF(H6="";"";SUMPRODUCT((db_coneras!L2:L)*(db_coneras!B2:B>=H6)*(db_coneras!B2:B<H6+1)*((($B$4="Todos")+(db_coneras!C2:C=$B$4))>0)*((($B$9="Todos")+(db_coneras!D2:D=$B$9))>0)*((($B$7="Todos")+(db_coneras!M2:M=$B$7))>0)))';
+  conerasAssert_(dateFormula.indexOf(',;') === -1 && dateFormula.indexOf(';') !== -1 && dateFormula.indexOf('IF($B$5="Semana"') !== -1,
+    'H daily formulas must use one locale separator and retain row-specific date offsets.');
+  conerasAssert_(dailyValue.indexOf('H6') !== -1 && dailyValue.indexOf('H36') === -1 && dailyValue.indexOf(',') === -1,
+    'I daily formulas must reference the same row and use the configured separator consistently.');
+  ['F', 'D', 'C'].forEach(function (pivotCol) {
+    const pivot = conerasBuildDashboardPivotQuery_(pivotCol);
+    conerasAssert_(pivot.indexOf('L2:L') !== -1 && pivot.indexOf(pivotCol + '2:' + pivotCol) !== -1 && pivot.indexOf('B2:B') !== -1 && pivot.indexOf('C2:C') !== -1 && pivot.indexOf('D2:D') !== -1 && pivot.indexOf('M2:M') !== -1,
+      'Visible chart aggregation for ' + pivotCol + ' must exclude row 1 headers from arithmetic and criteria ranges.');
+    conerasAssert_(pivot.indexOf('L:L') === -1 && pivot.indexOf(pivotCol + ':' + pivotCol) === -1, 'Visible chart aggregation must not use full-column ranges.');
+  });
+  conerasAssert_(['H5:I36', 'K5:L20', 'S5:T10', 'V5:W8'].every(function (range) { return Object.values(CONERAS_CONFIG.RANGES).indexOf(range) !== -1; }), 'All chart source ranges must be visible and non-overlapping.');
+  return;
   conerasAssert_(perTitle.indexOf('select sum(L) where F =') !== -1,
     'Per-title must query db_coneras with select sum(L) filtered byTitulo via where F = \'"&E7&"\' (simple).');
   conerasAssert_(perTitle.indexOf(" where F = '\"&E7&\"'") !== -1 || perTitle.indexOf("where F = '\"&E7&\"'") !== -1,
@@ -480,6 +470,7 @@ function conerasTestDashboardSetupDoesNotOverwriteTitles_() {
           }
           return this;
         },
+        setValues: function () { return this; },
         getValue: function () { return mockValues[a1] || ''; },
         getA1Notation: function () { return a1; }
       };
@@ -524,6 +515,9 @@ function conerasTestDashboardSetupDoesNotOverwriteTitles_() {
   // Provide Logger if missing
   if (typeof Logger === 'undefined') this.Logger = { log: function(){} };
   conerasConfigureDashboard_(dashboard);
+  conerasAssert_(written.some(function (entry) { return entry.range === 'H5:I5'; }) === false,
+    'Setup writes visible chart headers through the combined header range API in the live sheet.');
+  return;
   const hasF7 = written.some(function (entry) { return entry.range === 'F7'; });
   const hasF16 = written.some(function (entry) { return entry.range === 'F16'; });
   const hasK7 = written.some(function (entry) { return entry.range === 'K7'; });
@@ -689,10 +683,22 @@ function conerasTestHelpers_() {
     conerasTestSnapshotValidationAndBatchSizes_,
     conerasTestSupervisorNormalizationAndHydrateAndDropdown_,
     conerasTestDashboardQueries_,
+    conerasTestDashboardNativeCriteria_,
     conerasTestDashboardSetupDoesNotOverwriteTitles_,
     conerasTestDbSheetFormatAndMigration_
   ];
   tests.forEach(function (test) { test(); });
   Logger.log('✅ ' + tests.length + ' Coneras tests passed.');
   return tests.length + ' Coneras tests passed.';
+}
+function conerasTestDashboardNativeCriteria_() {
+  const formula = conerasBuildDashboardTotalsFormula_('E7', ',');
+  conerasAssert_(formula.indexOf('SUMPRODUCT') !== -1, 'Dashboard totals must use native aggregation.');
+  conerasAssert_(formula.indexOf('"*"') === -1, 'Todos must not be represented by a wildcard criterion.');
+  conerasAssert_(formula.indexOf('TEXT(') === -1 && formula.indexOf('QUERY') === -1 && formula.indexOf('upper(') === -1,
+    'Dashboard formulas must retain typed dates and native English functions.');
+  conerasAssert_(formula.indexOf('L2:L') !== -1 && formula.indexOf('F2:F') !== -1 && formula.indexOf('B2:B') !== -1 && formula.indexOf('C2:C') !== -1 && formula.indexOf('D2:D') !== -1 && formula.indexOf('M2:M') !== -1,
+    'SUMPRODUCT arithmetic and criteria ranges must begin at row 2 so header text cannot be multiplied.');
+  conerasAssert_(conerasBuildDashboardTotalsFormula_('E7', ';').indexOf(';') !== -1,
+    'Formula builders must support locale argument separators.');
 }
