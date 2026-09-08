@@ -8,7 +8,8 @@ function conerasOnEdit(event) {
   const form = conerasGetSheet_(event.source, 'CONERA');
   if (!form || range.getSheet().getSheetId() !== form.getSheetId()) return;
   const a1 = range.getA1Notation();
-  if (a1 === CONERAS_CONFIG.RANGES.SAVE_CHECKBOX && conerasIsChecked_(event.value)) {
+  const rawValue = event.value === undefined ? range.getValue() : event.value;
+  if (a1 === CONERAS_CONFIG.RANGES.SAVE_CHECKBOX && conerasIsChecked_(rawValue)) {
     try {
       guardarTurno();
     } finally {

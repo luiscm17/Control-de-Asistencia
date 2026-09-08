@@ -10,7 +10,17 @@ function conerasSetup() {
   conerasConfigureForm_(form);
   conerasConfigureDashboard_(conerasRequireSheet_(ss, 'DASHBOARD'));
   conerasVerifyNativeFormulas_(form);
+  conerasEnsureSaveCheckboxTrigger_();
   SpreadsheetApp.flush();
+}
+
+function conerasEnsureSaveCheckboxTrigger_() {
+  const handler = 'conerasOnEdit';
+  const exists = ScriptApp.getProjectTriggers().some(function (trigger) {
+    return trigger.getHandlerFunction() === handler &&
+      trigger.getEventType() === ScriptApp.EventType.ON_EDIT;
+  });
+  if (!exists) ScriptApp.newTrigger(handler).forSpreadsheet(SpreadsheetApp.getActive()).onEdit().create();
 }
 
 function conerasConfigureDashboard_(dashboard) {
@@ -141,6 +151,16 @@ function conerasEnsureTableSheet_(spreadsheet, key, headerRangeKey, headers, col
   headerRange.setFontWeight('bold').setBackground(color);
   sheet.setFrozenRows(1);
   conerasEnsureHeaderProtection_(sheet, headerRange);
+  if (key === 'DB') {
+    try {
+      // Column B (fecha) is stored as plain string yyyy-MM-dd (calendar date only, no timezone).
+      // Plain text avoids midnight/21:00 shifts; string comparison `B = '2026-09-07'` matches.
+      // Only audit columns (creado/actualizado) use America/La_Paz.
+      sheet.getRange('B2:B').setNumberFormat('@');
+    } catch (e) {
+      Logger.log('Unable to set db_coneras fecha format: ' + e.message);
+    }
+  }
   return sheet;
 }
 

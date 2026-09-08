@@ -95,10 +95,27 @@ function conerasRequireSheet_(spreadsheet, key) {
 
 function conerasNormalizeFecha_(value) {
   if (value instanceof Date && !isNaN(value.getTime())) {
-    return Utilities.formatDate(value, CONERAS_CONFIG.TIMEZONE, 'yyyy-MM-dd');
+    // Business date (E5) is a pure calendar date — timezone-agnostic.
+    // Extract local calendar parts without Utilities.formatDate / America/La_Paz.
+    // Audit timestamps (creado/actualizado) alone use America/La_Paz.
+    var y = value.getFullYear();
+    var m = value.getMonth() + 1;
+    var d = value.getDate();
+    return y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
   }
 
-  const match = String(value || '').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const raw = String(value || '').trim();
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    const year = Number(isoMatch[1]);
+    const month = Number(isoMatch[2]);
+    const day = Number(isoMatch[3]);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return '';
+    return year + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+  }
+
+  const match = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (!match) return '';
   const day = Number(match[1]);
   const month = Number(match[2]);
@@ -132,8 +149,8 @@ function conerasBuildDashboardQuery_(selectClause, groupBy, emptyForFecha) {
   const ranges = CONERAS_CONFIG.RANGES;
   const temporalPredicate = emptyForFecha
     ? 'SI($' + ranges.DASHBOARD_PERIODO + '="Fecha"," and B is null",'
-    : 'SI($' + ranges.DASHBOARD_PERIODO + '="Fecha",SI(ESNUMERO($' + ranges.DASHBOARD_FECHA + ')," and B = date \'"&TEXTO($' + ranges.DASHBOARD_FECHA + ',"yyyy-MM-dd")&"\'"," and B is null"),';
-  const rollingPeriod = 'SI($' + ranges.DASHBOARD_PERIODO + '="Semana"," and B >= date \'"&TEXTO(HOY()-6,"yyyy-MM-dd")&"\' and B <= date \'"&TEXTO(HOY(),"yyyy-MM-dd")&"\'"," and B >= date \'"&TEXTO(FECHA(AÑO(HOY()),MES(HOY()),1),"yyyy-MM-dd")&"\' and B <= date \'"&TEXTO(FIN.MES(HOY(),0),"yyyy-MM-dd")&"\'")';
+    : 'SI($' + ranges.DASHBOARD_PERIODO + '="Fecha",SI(ESNUMERO($' + ranges.DASHBOARD_FECHA + ')," and B = \'"&TEXTO($' + ranges.DASHBOARD_FECHA + ',"yyyy-MM-dd")&"\'"," and B is null"),';
+  const rollingPeriod = 'SI($' + ranges.DASHBOARD_PERIODO + '="Semana"," and B >= \'"&TEXTO(HOY()-6,"yyyy-MM-dd")&"\' and B <= \'"&TEXTO(HOY(),"yyyy-MM-dd")&"\'"," and B >= \'"&TEXTO(FECHA(AÑO(HOY()),MES(HOY()),1),"yyyy-MM-dd")&"\' and B <= \'"&TEXTO(FIN.MES(HOY(),0),"yyyy-MM-dd")&"\'")';
   const filters = [
     'SI($' + ranges.DASHBOARD_TURNO + '="Todos",""," and C = \'"&SUSTITUIR($' + ranges.DASHBOARD_TURNO + ',"\'","\'\'")&"\'")',
     'SI($' + ranges.DASHBOARD_MAQUINA + '="Todos",""," and D = \'"&SUSTITUIR($' + ranges.DASHBOARD_MAQUINA + ',"\'","\'\'")&"\'")',
@@ -142,14 +159,14 @@ function conerasBuildDashboardQuery_(selectClause, groupBy, emptyForFecha) {
   const label = groupBy === 'F'
     ? " label F 'Título', sum(L) 'Peso Neto'"
     : " label B 'Fecha', sum(L) 'Peso Neto'";
-  return '=QUERY(db_coneras!A:P,"' + selectClause + ' where B is not null"&' +
-    temporalPredicate + rollingPeriod + '&' + filters + '&" group by ' + groupBy + label + '",1)';
+  return '=SI.ERROR(QUERY(db_coneras!A:P,"' + selectClause + ' where B is not null"&' +
+    temporalPredicate + rollingPeriod + '&' + filters + '&" group by ' + groupBy + label + '",1),"")';
 }
 
 function conerasBuildDashboardTotalsFormula_(tituloCell) {
   const ranges = CONERAS_CONFIG.RANGES;
   const cell = tituloCell || ranges.DASHBOARD_TITLES.split(':')[0];
-  const temporal = 'SI($' + ranges.DASHBOARD_PERIODO + '="Fecha",SI(ESNUMERO($' + ranges.DASHBOARD_FECHA + ')," and B = date \'"&TEXTO($' + ranges.DASHBOARD_FECHA + ',"yyyy-MM-dd")&"\'"," and B is null"),SI($' + ranges.DASHBOARD_PERIODO + '="Semana"," and B >= date \'"&TEXTO(HOY()-6,"yyyy-MM-dd")&"\' and B <= date \'"&TEXTO(HOY(),"yyyy-MM-dd")&"\'"," and B >= date \'"&TEXTO(FECHA(AÑO(HOY()),MES(HOY()),1),"yyyy-MM-dd")&"\' and B <= date \'"&TEXTO(FIN.MES(HOY(),0),"yyyy-MM-dd")&"\'")';
+  const temporal = 'SI($' + ranges.DASHBOARD_PERIODO + '="Fecha",SI(ESNUMERO($' + ranges.DASHBOARD_FECHA + ')," and B = \'"&TEXTO($' + ranges.DASHBOARD_FECHA + ',"yyyy-MM-dd")&"\'"," and B is null"),SI($' + ranges.DASHBOARD_PERIODO + '="Semana"," and B >= \'"&TEXTO(HOY()-6,"yyyy-MM-dd")&"\' and B <= \'"&TEXTO(HOY(),"yyyy-MM-dd")&"\'"," and B >= \'"&TEXTO(FECHA(AÑO(HOY()),MES(HOY()),1),"yyyy-MM-dd")&"\' and B <= \'"&TEXTO(FIN.MES(HOY(),0),"yyyy-MM-dd")&"\'")';
   const filters = [
     'SI($' + ranges.DASHBOARD_TURNO + '="Todos",""," and C = \'"&SUSTITUIR($' + ranges.DASHBOARD_TURNO + ',"\'","\'\'")&"\'")',
     'SI($' + ranges.DASHBOARD_MAQUINA + '="Todos",""," and D = \'"&SUSTITUIR($' + ranges.DASHBOARD_MAQUINA + ',"\'","\'\'")&"\'")',

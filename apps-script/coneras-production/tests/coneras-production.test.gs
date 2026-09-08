@@ -16,11 +16,27 @@ function conerasTestFrozenConfiguration_() {
 }
 
 function conerasTestDateAndIdHelpers_() {
-  conerasAssert_(conerasNormalizeFecha_(new Date('2026-09-07T18:00:00Z')) === '2026-09-07',
-    'Date normalization must use the configured La Paz date.');
+  // Business date (E5) is a pure calendar date — timezone-agnostic, not America/La_Paz.
+  // Dashboard B filter B = 'yyyy-MM-dd' must match db_coneras!B (plain string yyyy-MM-dd).
+  // Only audit fields (creado/actualizado) use America/La_Paz.
+  conerasAssert_(conerasNormalizeFecha_(new Date(2026, 8, 7)) === '2026-09-07',
+    'Local midnight Date must normalize to iso via getFullYear/getMonth/getDate.');
+  conerasAssert_(conerasNormalizeFecha_(new Date(2026, 8, 7, 18, 0, 0)) === '2026-09-07',
+    'Date with time on same calendar day must stay same yyyy-MM-dd (timezone-agnostic).');
+  conerasAssert_(conerasNormalizeFecha_('07/09/2026') === '2026-09-07',
+    'String 07/09/2026 must normalize to iso.');
   conerasAssert_(conerasNormalizeFecha_('31/09/2026') === '', 'Invalid calendar dates must be rejected.');
+  conerasAssert_(conerasNormalizeFecha_('2026-09-07') === '2026-09-07',
+    'String yyyy-MM-dd must normalize to iso (stored B as plain string).');
   conerasAssert_(conerasBuildId_('2026-09-07', 'Dia', 'Autoconer 1', 3) ===
     '2026-09-07-DIA-AUTOCONER_1-03', 'ID must preserve the frozen PK format.');
+  var d = conerasDateFromKey_('2026-09-07');
+  conerasAssert_(typeof d === 'string' && d === '2026-09-07',
+    'conerasDateFromKey must return plain string yyyy-MM-dd (no Date/timezone) so Sheets displays date-only without 21:00 shift and string QUERY matches.');
+  conerasAssert_(conerasNormalizeFecha_(d) === '2026-09-07',
+    'String yyyy-MM-dd from conerasDateFromKey must round-trip through conerasNormalizeFecha without shift.');
+  conerasAssert_(conerasNormalizeFecha_(conerasDateFromKey_('2026-09-07')) === '2026-09-07',
+    'Dashboard B filter date must match stored db_coneras!B string.');
 }
 
 function conerasTestFormulaProtectionContract_() {
@@ -69,9 +85,9 @@ function conerasTestHeadersMatcher_() {
 
 function conerasTestPersistencePlan_() {
   const id = conerasBuildId_('2026-09-07', 'Dia', 'Autoconer 1', 1);
-  const existing = [id, new Date(2026, 8, 7), 'Dia', 'Autoconer 1', 1, '24', 'Ana',
+  const existing = [id, '2026-09-07', 'Dia', 'Autoconer 1', 1, '24', 'Ana',
     42.5, 12, 0.85, 1.2, 31.1, 'Carlos', 'created', 'old update', 'old@factory.bo'];
-  const replacement = [id, new Date(2026, 8, 7), 'Dia', 'Autoconer 1', 1, '24', 'Ana',
+  const replacement = [id, '2026-09-07', 'Dia', 'Autoconer 1', 1, '24', 'Ana',
     45, 12, 0.85, 1.2, 33.6, 'Diana', 'new created', 'new update', 'new@factory.bo'];
   const plan = conerasBuildPersistencePlanFromRows_([existing], {
     fecha: '2026-09-07', turno: 'Dia', maquina: 'Autoconer 1',
@@ -88,8 +104,15 @@ function conerasTestBatchAndInputRules_() {
     'Displayed es-BO numeric weight must be parsed.');
   conerasAssert_(conerasNumber_('') === null && conerasNumber_('not a number') === null,
     'Blank or invalid bruto must be skipped.');
-  conerasAssert_(conerasDateFromKey_('2026-09-07') instanceof Date,
-    'Normalized date must produce a Sheets DATE value.');
+  var dd = conerasDateFromKey_('2026-09-07');
+  conerasAssert_(typeof dd === 'string' && dd === '2026-09-07',
+    'Normalized date must be plain string yyyy-MM-dd (date-only, no time/timezone).');
+  conerasAssert_(conerasNormalizeFecha_('2026-09-07') === '2026-09-07' &&
+    conerasNormalizeFecha_(new Date(2026, 8, 7)) === '2026-09-07' &&
+    conerasNormalizeFecha_(new Date(2026, 8, 7, 12, 0, 0)) === '2026-09-07',
+    'Business fecha strings and local Dates must preserve yyyy-MM-dd via timezone-agnostic handling.');
+  conerasAssert_(conerasAuditTimestamp_() !== conerasNormalizeFecha_(new Date()),
+    'Audit timestamp (yyyy-MM-dd HH:mm:ss America/La_Paz) must remain distinct from business fecha (yyyy-MM-dd timezone-agnostic).');
   conerasAssert_(conerasIsChecked_('VERDADERO') && conerasIsChecked_(true),
     'Checkbox routing must accept localized and boolean true values.');
   conerasAssert_(!conerasIsChecked_('FALSE'), 'Unchecked checkbox must not save.');
@@ -97,7 +120,7 @@ function conerasTestBatchAndInputRules_() {
 
 function conerasTestDeleteGuardPlan_() {
   const id = conerasBuildId_('2026-09-07', 'Dia', 'Autoconer 1', 3);
-  const row = [id, new Date(2026, 8, 7), 'Dia', 'Autoconer 1', 3, '', '', 42.5,
+  const row = [id, '2026-09-07', 'Dia', 'Autoconer 1', 3, '', '', 42.5,
     '', '', '', 42.5, '', 'created', 'updated', 'editor'];
   const plan = conerasBuildPersistencePlanFromRows_([row], {
     fecha: '2026-09-07', turno: 'Dia', maquina: 'Autoconer 1', rows: [], emptyNumbers: [3]
@@ -186,6 +209,30 @@ function conerasTestDashboardQueries_() {
     'Daily must group QUERY results by fecha.');
   conerasAssert_(daily.indexOf('SI($B5="Fecha"," and B is null",') !== -1,
     'The daily chart source must be empty for Fecha and active for Semana or Mes.');
+  conerasAssert_(daily.indexOf('SI.ERROR(QUERY(db_coneras!A:P,"') !== -1 && daily.indexOf('",1),"")') !== -1,
+    'Daily QUERY must be wrapped with SI.ERROR for empty-db handling (blank not #N/A).');
+  conerasAssert_(daily.indexOf('QUERY(db_coneras!A:P,"') !== -1 && daily.indexOf(',1)') !== -1,
+    'Daily QUERY must use comma locale: QUERY(...,1) with comma.');
+  conerasAssert_(daily.indexOf(';') === -1 && perTitle.indexOf(';') === -1,
+    'Dashboard formulas must use commas, not semicolons (hybrid es-BO sheet expects commas as per H8).');
+  conerasAssert_(daily.indexOf('TEXTO(HOY()-6,"yyyy-MM-dd")') !== -1 &&
+    daily.indexOf('FECHA(AÑO(HOY()),MES(HOY()),1)') !== -1 && daily.indexOf('FIN.MES(HOY(),0)') !== -1,
+    'Daily must use comma locale for TEXTO/FECHA/FIN.MES/HOY (not semicolon).');
+  conerasAssert_(perTitle.indexOf('TEXTO($B6,"yyyy-MM-dd")') !== -1,
+    'Per-title must use comma locale for TEXTO($B6) (Fecha picker).');
+  conerasAssert_(perTitle.indexOf('QUERY(db_coneras!A:P,"') !== -1 && perTitle.indexOf(',0),0)') !== -1,
+    'Per-title must use comma locale: QUERY(...,0) wrapped in SI.ERROR(...,0).');
+  conerasAssert_(CONERAS_CONFIG.RANGES.DASHBOARD_FECHA === 'B6' && CONERAS_CONFIG.RANGES.DASHBOARD_SUPERVISOR === 'B7' &&
+    CONERAS_CONFIG.RANGES.DASHBOARD_EFFICIENCY === 'B8' && CONERAS_CONFIG.RANGES.DASHBOARD_MAQUINA === 'B9',
+    'Dashboard RANGES must be B4 Turno, B5 Periodo, B6 Fecha, B7 Supervisor, B8 Efficiency, B9 Maquina.');
+  conerasAssert_(perTitle.indexOf(" and B = '") !== -1 && perTitle.indexOf(" and B = date '") === -1,
+    'Per-title must compare B as string ( and B = \'...\' ), not date literal ( and B = date \'...\').');
+  conerasAssert_(perTitle.indexOf(" and B >= '") !== -1 && perTitle.indexOf(" and B >= date '") === -1,
+    'Per-title Semana/Mes must use string range B >= \'...\' without date keyword.');
+  conerasAssert_(daily.indexOf(" and B >= '") !== -1 && daily.indexOf(" and B >= date '") === -1,
+    'Daily must use string range B >= \'...\' without date keyword.');
+  conerasAssert_(perTitle.indexOf(" and B <= '") !== -1 && daily.indexOf(" and B <= '") !== -1,
+    'Both per-title and daily must use B <= \'...\' string comparison.');
 }
 
 function conerasTestDashboardSetupDoesNotOverwriteTitles_() {
@@ -246,6 +293,13 @@ function conerasTestDashboardSetupDoesNotOverwriteTitles_() {
   const f7Formula = written.filter(function (e){ return e.range==='F7'; })[0].formula;
   conerasAssert_(f7Formula.indexOf('E7') !== -1 && f7Formula.indexOf('db_coneras') !== -1,
     'F7 formula must reference E7 and query db_coneras.');
+  const k7Formula = written.filter(function (e){ return e.range==='K7'; })[0].formula;
+  conerasAssert_(k7Formula.indexOf('SI.ERROR(QUERY(db_coneras!A:P,"') !== -1,
+    'K7 daily must be wrapped with SI.ERROR for empty handling.');
+  conerasAssert_(k7Formula.indexOf(';') === -1,
+    'K7 and F7 formulas must use comma locale, not semicolons.');
+  conerasAssert_(f7Formula.indexOf('SI.ERROR(QUERY(db_coneras!A:P,"') !== -1 && f7Formula.indexOf(',0),0)') !== -1,
+    'F7 per-row must use SI.ERROR(QUERY(...,0),0) with comma locale.');
   // restore not needed in test harness
   if (originalSpreadsheetApp && typeof SpreadsheetApp !== 'undefined') {}
   if (originalCharts && typeof Charts !== 'undefined') {}
