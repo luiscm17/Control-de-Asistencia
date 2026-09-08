@@ -148,31 +148,31 @@ function conerasFormulaCells_() {
 function conerasBuildDashboardQuery_(selectClause, groupBy, emptyForFecha) {
   const ranges = CONERAS_CONFIG.RANGES;
   const temporalPredicate = emptyForFecha
-    ? 'SI($' + ranges.DASHBOARD_PERIODO + '="Fecha"," and B is null",'
-    : 'SI($' + ranges.DASHBOARD_PERIODO + '="Fecha",SI(ESNUMERO($' + ranges.DASHBOARD_FECHA + ')," and B = \'"&TEXTO($' + ranges.DASHBOARD_FECHA + ',"yyyy-MM-dd")&"\'"," and B is null"),';
-  const rollingPeriod = 'SI($' + ranges.DASHBOARD_PERIODO + '="Semana"," and B >= \'"&TEXTO(HOY()-6,"yyyy-MM-dd")&"\' and B <= \'"&TEXTO(HOY(),"yyyy-MM-dd")&"\'"," and B >= \'"&TEXTO(FECHA(AÑO(HOY()),MES(HOY()),1),"yyyy-MM-dd")&"\' and B <= \'"&TEXTO(FIN.MES(HOY(),0),"yyyy-MM-dd")&"\'")';
+    ? 'IF($' + ranges.DASHBOARD_PERIODO + '="Fecha"," and B is null",'
+    : 'IF($' + ranges.DASHBOARD_PERIODO + '="Fecha",IF(ISNUMBER($' + ranges.DASHBOARD_FECHA + ')," and B = \'"&TEXT($' + ranges.DASHBOARD_FECHA + ',"yyyy-MM-dd")&"\'"," and B is null"),';
+  const rollingPeriod = 'IF($' + ranges.DASHBOARD_PERIODO + '="Semana"," and B >= \'"&TEXT(TODAY()-6,"yyyy-MM-dd")&"\' and B <= \'"&TEXT(TODAY(),"yyyy-MM-dd")&"\'"," and B >= \'"&TEXT(DATE(YEAR(TODAY()),MONTH(TODAY()),1),"yyyy-MM-dd")&"\' and B <= \'"&TEXT(EOMONTH(TODAY(),0),"yyyy-MM-dd")&"\'"))';
   const filters = [
-    'SI($' + ranges.DASHBOARD_TURNO + '="Todos",""," and C = \'"&SUSTITUIR($' + ranges.DASHBOARD_TURNO + ',"\'","\'\'")&"\'")',
-    'SI($' + ranges.DASHBOARD_MAQUINA + '="Todos",""," and D = \'"&SUSTITUIR($' + ranges.DASHBOARD_MAQUINA + ',"\'","\'\'")&"\'")',
-    'SI($' + ranges.DASHBOARD_SUPERVISOR + '="Todos",""," and M = \'"&SUSTITUIR($' + ranges.DASHBOARD_SUPERVISOR + ',"\'","\'\'")&"\'")'
+    'IF($' + ranges.DASHBOARD_TURNO + '="Todos",""," and C = \'"&SUBSTITUTE($' + ranges.DASHBOARD_TURNO + ',"\'","\'\'")&"\'")',
+    'IF($' + ranges.DASHBOARD_MAQUINA + '="Todos",""," and D = \'"&SUBSTITUTE($' + ranges.DASHBOARD_MAQUINA + ',"\'","\'\'")&"\'")',
+    'IF($' + ranges.DASHBOARD_SUPERVISOR + '="Todos",""," and M = \'"&SUBSTITUTE($' + ranges.DASHBOARD_SUPERVISOR + ',"\'","\'\'")&"\'")'
   ].join('&');
   const label = groupBy === 'F'
     ? " label F 'Título', sum(L) 'Peso Neto'"
     : " label B 'Fecha', sum(L) 'Peso Neto'";
-  return '=SI.ERROR(QUERY(db_coneras!A:P,"' + selectClause + ' where B is not null"&' +
+  return '=IFERROR(QUERY(db_coneras!A:P,"' + selectClause + ' where B is not null"&' +
     temporalPredicate + rollingPeriod + '&' + filters + '&" group by ' + groupBy + label + '",1),"")';
 }
 
 function conerasBuildDashboardTotalsFormula_(tituloCell) {
   const ranges = CONERAS_CONFIG.RANGES;
   const cell = tituloCell || ranges.DASHBOARD_TITLES.split(':')[0];
-  const temporal = 'SI($' + ranges.DASHBOARD_PERIODO + '="Fecha",SI(ESNUMERO($' + ranges.DASHBOARD_FECHA + ')," and B = \'"&TEXTO($' + ranges.DASHBOARD_FECHA + ',"yyyy-MM-dd")&"\'"," and B is null"),SI($' + ranges.DASHBOARD_PERIODO + '="Semana"," and B >= \'"&TEXTO(HOY()-6,"yyyy-MM-dd")&"\' and B <= \'"&TEXTO(HOY(),"yyyy-MM-dd")&"\'"," and B >= \'"&TEXTO(FECHA(AÑO(HOY()),MES(HOY()),1),"yyyy-MM-dd")&"\' and B <= \'"&TEXTO(FIN.MES(HOY(),0),"yyyy-MM-dd")&"\'")';
+  const temporal = 'IF($' + ranges.DASHBOARD_PERIODO + '="Fecha",IF(ISNUMBER($' + ranges.DASHBOARD_FECHA + ')," and B = \'"&TEXT($' + ranges.DASHBOARD_FECHA + ',"yyyy-MM-dd")&"\'"," and B is null"),IF($' + ranges.DASHBOARD_PERIODO + '="Semana"," and B >= \'"&TEXT(TODAY()-6,"yyyy-MM-dd")&"\' and B <= \'"&TEXT(TODAY(),"yyyy-MM-dd")&"\'"," and B >= \'"&TEXT(DATE(YEAR(TODAY()),MONTH(TODAY()),1),"yyyy-MM-dd")&"\' and B <= \'"&TEXT(EOMONTH(TODAY(),0),"yyyy-MM-dd")&"\'"))';
   const filters = [
-    'SI($' + ranges.DASHBOARD_TURNO + '="Todos",""," and C = \'"&SUSTITUIR($' + ranges.DASHBOARD_TURNO + ',"\'","\'\'")&"\'")',
-    'SI($' + ranges.DASHBOARD_MAQUINA + '="Todos",""," and D = \'"&SUSTITUIR($' + ranges.DASHBOARD_MAQUINA + ',"\'","\'\'")&"\'")',
-    'SI($' + ranges.DASHBOARD_SUPERVISOR + '="Todos",""," and M = \'"&SUSTITUIR($' + ranges.DASHBOARD_SUPERVISOR + ',"\'","\'\'")&"\'")'
+    'IF($' + ranges.DASHBOARD_TURNO + '="Todos",""," and C = \'"&SUBSTITUTE($' + ranges.DASHBOARD_TURNO + ',"\'","\'\'")&"\'")',
+    'IF($' + ranges.DASHBOARD_MAQUINA + '="Todos",""," and D = \'"&SUBSTITUTE($' + ranges.DASHBOARD_MAQUINA + ',"\'","\'\'")&"\'")',
+    'IF($' + ranges.DASHBOARD_SUPERVISOR + '="Todos",""," and M = \'"&SUBSTITUTE($' + ranges.DASHBOARD_SUPERVISOR + ',"\'","\'\'")&"\'")'
   ].join('&');
-  const tituloEscaped = 'SUSTITUIR(TEXTO(' + cell + ',"@"),"\'","\'\'")';
-  const tituloPredicate = 'SI(ESNUMERO(' + cell + ')," and F = "&' + cell + '&" "," and F = \'"&' + tituloEscaped + '&"\'")';
-  return '=SI(' + cell + '="","",SI.ERROR(QUERY(db_coneras!A:P,"' + CONERAS_CONFIG.FORMULAS.DASHBOARD_TOTALS_SELECT + ' where B is not null"&' + tituloPredicate + '&' + temporal + '&' + filters + '&" label sum(L) \'\'",0),0))';
+  const tituloEscaped = 'SUBSTITUTE(TEXT(' + cell + ',"@"),"\'","\'\'")';
+  const tituloPredicate = 'IF(ISNUMBER(' + cell + ')," and F = "&' + cell + '&" "," and F = \'"&' + tituloEscaped + '&"\'")';
+  return '=IF(' + cell + '="","",IFERROR(QUERY(db_coneras!A:P,"' + CONERAS_CONFIG.FORMULAS.DASHBOARD_TOTALS_SELECT + ' where B is not null"&' + tituloPredicate + '&' + temporal + '&' + filters + '&" label sum(L) \'\'",0),0))';
 }
