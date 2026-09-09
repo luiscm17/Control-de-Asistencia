@@ -15,13 +15,13 @@ The dashboard MUST provide Periodo (`Fecha`, `Semana`, `Mes`), Turno, Maquina, S
 
 ### Requirement: Aggregation and read-only behavior (FR-012, FR-016)
 
-The dashboard MUST use native `QUERY` directly on `db_coneras!A:P` to spill at `E7`, grouping `titulo` and summing `peso_neto` under the active filters. It MUST filter automatically with formulas and MUST NOT provide a dashboard-to-database write path.
+The dashboard MUST use native `SUMPRODUCT` formulas directly on `db_coneras!A:P` (with English `IF`/`TODAY`/`DATE`/`EOMONTH`, no `QUERY`/`SUBSTITUTE`/`upper`) to compute per-title and daily totals under the active filters. It MUST filter automatically with formulas and MUST NOT provide a dashboard-to-database write path.
 
 #### Scenario: Filter production totals
 
 - GIVEN matching database records and active controls
-- WHEN `E7` recalculates
-- THEN it MUST return grouped title totals from the database
+- WHEN formulas recalculate (`F7:F16` per-title `SUMPRODUCT`, `H/I` daily, pivots `K/S/V`)
+- THEN they MUST return grouped title totals from `db_coneras!L2:L` with `F2:F=E7` and date/criteria filters (`>0` predicate for `Todos`)
 - AND blank titles MUST remain representable as `(sin título)`
 
 ### Requirement: Charts and meta real (FR-014, FR-015, FR-017)

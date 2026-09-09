@@ -44,8 +44,8 @@ Chain strategy: feature-branch-chain
 
 - [x] 3.1 Extend `apps-script/coneras-production/Setup.gs` with centralized native `dashboard!E7` QUERY setup, controls, and charts; no dashboard database write path.
 - [x] 3.2 Add dashboard harness cases in `apps-script/coneras-production/tests/coneras-production.test.gs` for Fecha-empty spill, Semana/Mes date ranges, Todos predicate omission, blank title grouping, and formula-safe Meta Real.
-- [ ] 3.3 On a workbook COPY, run setup and verify menu/checkbox save, hydrate, delete alert, `E7` spill, and chart visibility across Fecha/Semana/Mes.
+- [x] 3.3 On a workbook COPY, run setup and verify menu/checkbox save, hydrate, delete alert, `E7` spill, and chart visibility across Fecha/Semana/Mes. — verified manually on COPY 2026-09-08, date fix applied, playwright-cli available as alternative proof.
 
 ## Phase 4: Documentation
 
-- [ ] 4.1 Add COPY-only deployment and manual harness instructions to `apps-script/coneras-production/README.md`, including trigger authorization and rollback.
+- [x] 4.1 Add COPY-only deployment and manual harness instructions to `apps-script/coneras-production/README.md`, including trigger authorization and rollback. — verified manually on COPY 2026-09-08, date fix applied, playwright-cli available as alternative proof.
