@@ -85,53 +85,122 @@ function yarnBuildShiftSnapshot_(input) {
 
   const weighings = [];
   const weighingRows = source.weighings || [];
-  weighingRows.forEach(function (row, index) {
-    const rowNumber = wp.r1 + index;
-    const machine = yarnText_(row[0]);
-    const discharge = yarnOptionalNumber_(row[1]);
-    const side = yarnText_(row[2]).toUpperCase();
-    const gross = yarnOptionalNumber_(row[3]);
-    const uses = yarnOptionalNumber_(row[4]);
-    const coneWeight = yarnOptionalNumber_(row[5]);
-    const bucketWeight = yarnOptionalNumber_(row[6]);
-    const hasGross = yarnHasValue_(row[3]);
-    const visiblePk = machine && discharge !== null && discharge !== false &&
-      discharge >= 1 && discharge <= YARN_SETTINGS_CONFIG.LIMITS.DISCHARGES_PER_MACHINE &&
-      (side === 'A' || side === 'B');
-
-    if (!visiblePk) {
-      // The form includes non-persistent helper rows. Only rows with a complete,
-      // visible weighing PK are snapshot candidates.
-      return;
-    }
-    if (gross === false) {
-      yarnAddSnapshotError_(errors, YARN_SETTINGS_CONFIG.ERRORS.INVALID_GROSS_WEIGHT,
-        prefix + 'E' + rowNumber);
-      return;
-    }
-    if (uses === false || coneWeight === false || bucketWeight === false) {
-      yarnAddSnapshotError_(errors, YARN_SETTINGS_CONFIG.ERRORS.INVALID_TARE,
-        prefix + 'F' + rowNumber + ':H' + rowNumber);
-      return;
-    }
-    if (hasGross && !titleByMachine[machine]) {
-      yarnAddSnapshotError_(errors, YARN_SETTINGS_CONFIG.ERRORS.MISSING_WEIGHING_TITLE,
-        prefix + 'E' + rowNumber);
-      return;
-    }
-
-    weighings.push(Object.freeze({
-      machine: machine,
-      discharge: discharge,
-      side: side,
-      title: titleByMachine[machine] || '',
-      grossWeight: gross,
-      uses: uses === null ? 0 : uses,
-      coneWeight: coneWeight === null ? 0 : coneWeight,
-      bucketWeight: bucketWeight === null ? 0 : bucketWeight,
-      sourceRange: prefix + 'E' + rowNumber + ':H' + rowNumber
-    }));
+  var useBlockMode = weighingRows.some(function (row) {
+    return yarnIsRetorcedoraHeader_(row[0]) && !yarnHasValue_(row[1]);
   });
+
+  if (useBlockMode) {
+    var currentMachine = null;
+    // B50:H157 envelope starts mid-block for Retorcedora 1 (header at row 48 outside envelope).
+    // Default to Retorcedora 1 so rows 50-57 are not orphaned before first in-range header.
+    var hasInitialHeader = weighingRows.length > 0 && yarnIsRetorcedoraHeader_(weighingRows[0][0]) && !yarnHasValue_(weighingRows[0][1]);
+    if (!hasInitialHeader) {
+      currentMachine = 'Retorcedora 1';
+    }
+    weighingRows.forEach(function (row, index) {
+      const rowNumber = wp.r1 + index;
+      var rawB = yarnText_(row[0]);
+      var rawC = yarnText_(row[1]);
+      var upperB = rawB.toUpperCase();
+      var upperC = rawC.toUpperCase();
+
+      if (yarnIsRetorcedoraHeader_(rawB)) {
+        currentMachine = yarnNormalizeRetorcedora_(rawB);
+        return;
+      }
+      if (upperB === 'DESCARGA #' || upperB === 'DESCARGA' || upperC === 'LADO') {
+        return;
+      }
+
+      var discharge = yarnOptionalNumber_(row[0]);
+      var side = yarnNormalizeSide_(row[1]);
+      var gross = yarnOptionalNumber_(row[3]);
+      var uses = yarnOptionalNumber_(row[4]);
+      var coneWeight = yarnOptionalNumber_(row[5]);
+      var bucketWeight = yarnOptionalNumber_(row[6]);
+      var hasGross = yarnHasValue_(row[3]);
+      var visiblePk = currentMachine && discharge !== null && discharge !== false &&
+        discharge >= 1 && discharge <= YARN_SETTINGS_CONFIG.LIMITS.DISCHARGES_PER_MACHINE &&
+        (side === 'A' || side === 'B');
+
+      if (!visiblePk) {
+        return;
+      }
+      if (gross === false) {
+        yarnAddSnapshotError_(errors, YARN_SETTINGS_CONFIG.ERRORS.INVALID_GROSS_WEIGHT,
+          prefix + 'E' + rowNumber);
+        return;
+      }
+      if (uses === false || coneWeight === false || bucketWeight === false) {
+        yarnAddSnapshotError_(errors, YARN_SETTINGS_CONFIG.ERRORS.INVALID_TARE,
+          prefix + 'F' + rowNumber + ':H' + rowNumber);
+        return;
+      }
+      if (hasGross && !titleByMachine[currentMachine]) {
+        yarnAddSnapshotError_(errors, YARN_SETTINGS_CONFIG.ERRORS.MISSING_WEIGHING_TITLE,
+          prefix + 'E' + rowNumber);
+        return;
+      }
+
+      weighings.push(Object.freeze({
+        machine: currentMachine,
+        discharge: discharge,
+        side: side,
+        title: titleByMachine[currentMachine] || '',
+        grossWeight: gross,
+        uses: uses === null ? 0 : uses,
+        coneWeight: coneWeight === null ? 0 : coneWeight,
+        bucketWeight: bucketWeight === null ? 0 : bucketWeight,
+        sourceRange: prefix + 'E' + rowNumber + ':H' + rowNumber
+      }));
+    });
+  } else {
+    weighingRows.forEach(function (row, index) {
+      const rowNumber = wp.r1 + index;
+      const machine = yarnText_(row[0]);
+      const discharge = yarnOptionalNumber_(row[1]);
+      const side = yarnNormalizeSide_(row[2]);
+      const gross = yarnOptionalNumber_(row[3]);
+      const uses = yarnOptionalNumber_(row[4]);
+      const coneWeight = yarnOptionalNumber_(row[5]);
+      const bucketWeight = yarnOptionalNumber_(row[6]);
+      const hasGross = yarnHasValue_(row[3]);
+      const visiblePk = machine && discharge !== null && discharge !== false &&
+        discharge >= 1 && discharge <= YARN_SETTINGS_CONFIG.LIMITS.DISCHARGES_PER_MACHINE &&
+        (side === 'A' || side === 'B');
+
+      if (!visiblePk) {
+        return;
+      }
+      if (gross === false) {
+        yarnAddSnapshotError_(errors, YARN_SETTINGS_CONFIG.ERRORS.INVALID_GROSS_WEIGHT,
+          prefix + 'E' + rowNumber);
+        return;
+      }
+      if (uses === false || coneWeight === false || bucketWeight === false) {
+        yarnAddSnapshotError_(errors, YARN_SETTINGS_CONFIG.ERRORS.INVALID_TARE,
+          prefix + 'F' + rowNumber + ':H' + rowNumber);
+        return;
+      }
+      if (hasGross && !titleByMachine[machine]) {
+        yarnAddSnapshotError_(errors, YARN_SETTINGS_CONFIG.ERRORS.MISSING_WEIGHING_TITLE,
+          prefix + 'E' + rowNumber);
+        return;
+      }
+
+      weighings.push(Object.freeze({
+        machine: machine,
+        discharge: discharge,
+        side: side,
+        title: titleByMachine[machine] || '',
+        grossWeight: gross,
+        uses: uses === null ? 0 : uses,
+        coneWeight: coneWeight === null ? 0 : coneWeight,
+        bucketWeight: bucketWeight === null ? 0 : bucketWeight,
+        sourceRange: prefix + 'E' + rowNumber + ':H' + rowNumber
+      }));
+    });
+  }
 
   if (weighings.length > YARN_SETTINGS_CONFIG.LIMITS.WEIGHINGS_PER_DAY) {
     yarnAddSnapshotError_(errors, YARN_SETTINGS_CONFIG.ERRORS.TOO_MANY_WEIGHINGS, weighingsRangeA1);
@@ -142,8 +211,15 @@ function yarnBuildShiftSnapshot_(input) {
     yarnAddSnapshotError_(errors, YARN_SETTINGS_CONFIG.ERRORS.EMPTY_FORM, YARN_SETTINGS_CONFIG.SHEETS.SETTINGS);
   }
 
+  var blockingCodes = {};
+  blockingCodes[YARN_SETTINGS_CONFIG.ERRORS.INVALID_DATE] = true;
+  blockingCodes[YARN_SETTINGS_CONFIG.ERRORS.INVALID_TURNO] = true;
+  blockingCodes[YARN_SETTINGS_CONFIG.ERRORS.EMPTY_FORM] = true;
+  blockingCodes[YARN_SETTINGS_CONFIG.ERRORS.TOO_MANY_WEIGHINGS] = true;
+  var hasBlockingError = errors.some(function (e) { return !!blockingCodes[e.code]; });
+
   return Object.freeze({
-    valid: errors.length === 0,
+    valid: !hasBlockingError,
     date: date,
     turno: turno,
     assignments: Object.freeze(assignments),
@@ -200,6 +276,24 @@ function yarnHasValue_(value) {
 
 function yarnText_(value) {
   return value === null || value === undefined ? '' : String(value).trim();
+}
+
+function yarnNormalizeSide_(value) {
+  var raw = yarnText_(value).toUpperCase().trim();
+  if (raw === 'A' || raw === 'LADO A') return 'A';
+  if (raw === 'B' || raw === 'LADO B') return 'B';
+  return raw;
+}
+
+function yarnIsRetorcedoraHeader_(value) {
+  return yarnText_(value).toUpperCase().indexOf('RETORCEDORA') === 0;
+}
+
+function yarnNormalizeRetorcedora_(value) {
+  var raw = yarnText_(value);
+  var match = raw.match(/retorcedora\s*(\d+)/i);
+  if (match) return 'Retorcedora ' + parseInt(match[1], 10);
+  return raw;
 }
 
 function yarnAddSnapshotError_(errors, code, range) {

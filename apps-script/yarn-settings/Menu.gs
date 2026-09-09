@@ -49,12 +49,12 @@ function yarnEnsureSaveCheckboxTrigger_() {
 function yarnSettingsOnEdit(event) {
   if (yarnIsSaveCheckboxEvent_(event)) {
     const checkbox = event.range;
+    try { Utilities.sleep(300); } catch (e) {}
     try {
       guardarTurno();
     } finally {
-      Utilities.sleep(1000);
-      checkbox.setValue(false);
-      SpreadsheetApp.flush();
+      try { checkbox.setValue(false); } catch (e) {}
+      try { SpreadsheetApp.flush(); } catch (e) {}
     }
     return;
   }
@@ -159,6 +159,22 @@ function yarnHydrateSettingsForm_(ss, date, turno) {
   });
 
   if (matchingAssignments.length === 0 && matchingWeighings.length === 0) {
+    // Fix: clear form before returning so switching to an empty turno wipes previous values.
+    try {
+      yarnClearSettingsForm_(settings);
+    } catch (clearError) {
+      try { settings.getRange('C33:E42').clearContent(); } catch (ignoreClear) {}
+      var clearWp;
+      try { clearWp = yarnParseRange_(weighingRangeA1); } catch (e2) { clearWp = { r1: 50, c1: 2, r2: 157, c2: 8 }; }
+      var clearVals = [];
+      try { clearVals = settings.getRange(weighingRangeA1).getValues(); } catch (e3) { clearVals = []; }
+      for (var clearIdx = 0; clearIdx < clearVals.length; clearIdx++) {
+        if (yarnIsWeighingHeaderRow_(clearVals[clearIdx])) continue;
+        if (!yarnIsWeighingDataRow_(clearVals[clearIdx])) continue;
+        try { settings.getRange('E' + (clearWp.r1 + clearIdx) + ':H' + (clearWp.r1 + clearIdx)).clearContent(); } catch (ignore2) {}
+      }
+      try { SpreadsheetApp.flush(); } catch (ignore3) {}
+    }
     try { spreadsheet.toast('Nuevo turno — sin datos guardados', 'Yarn', 3); } catch (ignore) {}
     return;
   }
@@ -227,35 +243,68 @@ function yarnHydrateSettingsForm_(ss, date, turno) {
     }
   }
 
-  // Weighings: only E:H for data rows, skipping header rows (RETORCEDORA blocks)
+  // Weighings: PK-aware hydration — mirrors Ingest block parsing, no sequential pointer.
   var wp;
   try { wp = yarnParseRange_(weighingRangeA1); } catch (e) { wp = { r1: 50, c1: 2, r2: 157, c2: 8 }; }
   var weighFullValues = [];
   try { weighFullValues = settings.getRange(weighingRangeA1).getValues(); } catch (e) { weighFullValues = []; }
 
-  // Sort weighings for stable sequential hydration
-  matchingWeighings.sort(function (a, b) {
-    var ka = (a.length >= 16 ? yarnText_(a[3]) + '|' + a[4] + '|' + yarnText_(a[5]) : yarnText_(a[2]) + '|' + a[3] + '|' + yarnText_(a[4]));
-    var kb = (b.length >= 16 ? yarnText_(b[3]) + '|' + b[4] + '|' + yarnText_(b[5]) : yarnText_(b[2]) + '|' + b[3] + '|' + yarnText_(b[4]));
-    return ka.localeCompare(kb);
-  });
+  // Local fallbacks so hydration works even if Ingest helpers are reordered at runtime.
+  var _yarnText = (typeof yarnText_ === 'function') ? yarnText_ : function (v) { return v == null ? '' : String(v).trim(); };
+  var _yarnHasValue = (typeof yarnHasValue_ === 'function') ? yarnHasValue_ : function (v) { return v !== null && v !== undefined && String(v).trim() !== ''; };
+  var _yarnOptionalNumber = (typeof yarnOptionalNumber_ === 'function') ? yarnOptionalNumber_ : function (v) {
+    if (v == null || String(v).trim() === '') return null;
+    if (typeof v === 'boolean') return false;
+    var n = Number(v);
+    return isFinite(n) ? n : false;
+  };
+  var _yarnNormalizeSide = (typeof yarnNormalizeSide_ === 'function') ? yarnNormalizeSide_ : function (v) {
+    var raw = _yarnText(v).toUpperCase();
+    if (raw === 'A' || raw === 'LADO A') return 'A';
+    if (raw === 'B' || raw === 'LADO B') return 'B';
+    return raw;
+  };
+  var _yarnNormalizeRet = (typeof yarnNormalizeRetorcedora_ === 'function') ? yarnNormalizeRetorcedora_ : function (v) {
+    var raw = _yarnText(v);
+    var m = raw.match(/retorcedora\s*(\d+)/i);
+    if (m) return 'Retorcedora ' + parseInt(m[1], 10);
+    return raw;
+  };
+  var _yarnIsRetHeader = (typeof yarnIsRetorcedoraHeader_ === 'function') ? yarnIsRetorcedoraHeader_ : function (v) {
+    return _yarnText(v).toUpperCase().indexOf('RETORCEDORA') === 0;
+  };
 
-  // Build list of E:H values for weighings in sorted order
-  var weighingInputs = [];
+  // Build PK map: key = RETORCEDORA|descarga|lado (canonical upper) -> [gross, usos, cone, tacho]
+  var weighingMap = {};
   for (var w = 0; w < matchingWeighings.length; w++) {
     var wv = matchingWeighings[w];
-    var wGross, wUsos, wCone, wTacho;
+    var wRet, wDis, wSide, wGross, wUsos, wCone, wTacho;
     if (wv.length >= 16) {
+      wRet = wv[3]; wDis = wv[4]; wSide = wv[5];
       wGross = wv[7]; wUsos = wv[8]; wCone = wv[9]; wTacho = wv[10];
     } else {
+      wRet = wv[2]; wDis = wv[3]; wSide = wv[4];
       wGross = wv[6]; wUsos = wv[7]; wCone = wv[8]; wTacho = wv[9];
     }
-    weighingInputs.push([
+    var disNum = _yarnOptionalNumber(wDis);
+    if (disNum === null || disNum === false || disNum < 1 || disNum > 4 || Math.floor(disNum) !== disNum) continue;
+    var sideNorm = _yarnNormalizeSide(wSide);
+    if (sideNorm !== 'A' && sideNorm !== 'B') continue;
+    var retNorm = _yarnNormalizeRet(wRet);
+    if (!_yarnText(retNorm)) continue;
+    var key = _yarnText(retNorm).toUpperCase() + '|' + disNum + '|' + sideNorm.toUpperCase();
+    weighingMap[key] = [
       wGross === null || wGross === undefined ? '' : wGross,
       wUsos === null || wUsos === undefined ? '' : wUsos,
       wCone === null || wCone === undefined ? '' : wCone,
       wTacho === null || wTacho === undefined ? '' : wTacho
-    ]);
+    ];
+  }
+
+  // Detect block mode same as Ingest: any RETORCEDORA header with empty C.
+  var useBlockMode = false;
+  for (var b = 0; b < weighFullValues.length; b++) {
+    if (_yarnIsRetHeader(weighFullValues[b][0]) && !_yarnHasValue(weighFullValues[b][1])) { useBlockMode = true; break; }
   }
 
   // Clear all data-row E:H first to ensure empty slots are blank (preserve headers)
@@ -266,16 +315,48 @@ function yarnHydrateSettingsForm_(ss, date, turno) {
     try { settings.getRange('E' + clearRow + ':H' + clearRow).clearContent(); } catch (ignore3) {}
   }
 
-  // Sequential write skipping header rows
-  var pointer = 0;
-  for (var wIdx = 0; wIdx < weighingInputs.length; wIdx++) {
-    while (pointer < weighFullValues.length && (yarnIsWeighingHeaderRow_(weighFullValues[pointer]) || !yarnIsWeighingDataRow_(weighFullValues[pointer]))) {
-      pointer++;
+  // PK-aware fill: for each sheet data row infer its PK and look up weighingMap.
+  if (useBlockMode) {
+    var currentMachine = null;
+    var hasInitialHeader = weighFullValues.length > 0 && _yarnIsRetHeader(weighFullValues[0][0]) && !_yarnHasValue(weighFullValues[0][1]);
+    if (!hasInitialHeader) currentMachine = 'Retorcedora 1';
+    for (var r = 0; r < weighFullValues.length; r++) {
+      var row = weighFullValues[r];
+      var rawB = _yarnText(row[0]);
+      if (_yarnIsRetHeader(rawB)) { currentMachine = _yarnNormalizeRet(rawB); continue; }
+      var upperB = rawB.toUpperCase();
+      var upperC = _yarnText(row[1]).toUpperCase();
+      if (upperB === 'DESCARGA #' || upperB === 'DESCARGA' || upperC === 'LADO') continue;
+      if (yarnIsWeighingHeaderRow_(row)) continue;
+      if (!yarnIsWeighingDataRow_(row)) continue;
+      if (!currentMachine) continue;
+      var dNum = _yarnOptionalNumber(row[0]);
+      var sNorm = _yarnNormalizeSide(row[1]);
+      if (dNum === null || dNum === false || dNum < 1 || dNum > 4 || Math.floor(dNum) !== dNum) continue;
+      if (sNorm !== 'A' && sNorm !== 'B') continue;
+      var k = _yarnNormalizeRet(currentMachine).toUpperCase() + '|' + dNum + '|' + sNorm.toUpperCase();
+      var entry = weighingMap[k];
+      if (!entry) continue;
+      var sheetRow = wp.r1 + r;
+      try { settings.getRange('E' + sheetRow + ':H' + sheetRow).setValues([entry]); } catch (ignore4) {}
     }
-    if (pointer >= weighFullValues.length) break;
-    var sheetRow = wp.r1 + pointer;
-    try { settings.getRange('E' + sheetRow + ':H' + sheetRow).setValues([weighingInputs[wIdx]]); } catch (ignore4) {}
-    pointer++;
+  } else {
+    // Flat fallback: B=machine, C=discharge, D=lado (legacy)
+    for (var r2 = 0; r2 < weighFullValues.length; r2++) {
+      var row2 = weighFullValues[r2];
+      if (yarnIsWeighingHeaderRow_(row2)) continue;
+      if (!yarnIsWeighingDataRow_(row2)) continue;
+      var mach2 = _yarnNormalizeRet(row2[0]);
+      var dNum2 = _yarnOptionalNumber(row2[1]);
+      var sNorm2 = _yarnNormalizeSide(row2[2]);
+      if (!_yarnText(mach2) || dNum2 === null || dNum2 === false) continue;
+      if (sNorm2 !== 'A' && sNorm2 !== 'B') continue;
+      var k2 = _yarnText(mach2).toUpperCase() + '|' + dNum2 + '|' + sNorm2.toUpperCase();
+      var entry2 = weighingMap[k2];
+      if (!entry2) continue;
+      var sheetRow2 = wp.r1 + r2;
+      try { settings.getRange('E' + sheetRow2 + ':H' + sheetRow2).setValues([entry2]); } catch (ignore5) {}
+    }
   }
 
   SpreadsheetApp.flush();

@@ -171,7 +171,7 @@ function yarnDateKey_(date) {
 }
 
 function yarnDateValue_(date) {
-  return new Date(date.year, date.month - 1, date.day);
+  return new Date(date.year, date.month - 1, date.day, 12, 0, 0);
 }
 
 function yarnPad2_(value) {
