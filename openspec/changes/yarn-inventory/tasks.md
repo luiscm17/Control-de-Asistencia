@@ -39,12 +39,13 @@ Chain strategy: stacked-to-main
 
 ## Phase 3: Integration / Wiring
 
-- [ ] 3.1 Create `apps-script/yarn-inventory/Menu.gs` `onOpen` `Inventario → Guardar Madejeras|Lotes|Todo + Ver db_* + Re-sincronizar`, no checkbox/debounce
-- [ ] 3.2 Implement `yarnInventoryOnEdit` hydration: `B3/F3` or `C3/E3` change → clear+fill only input ranges for `fecha+turno`; `H8:K17` + `G/P/Q/R` never touched `FORMULA` verbatim
-- [ ] 3.3 Enforce `fecha` native DATE (`getFullYear/getMonth/getDate` no `formatDate`) + audit `Utilities.formatDate(...,La_Paz)` only, invalid blocks that form no partial write
+- [x] 3.1 Create `apps-script/yarn-inventory/Menu.gs` `onOpen` `Inventario → Guardar Madejeras|Lotes|Todo + Ver db_* + Re-sincronizar`, no checkbox/debounce
+- [x] 3.2 Implement `yarnInventoryOnEdit` hydration: `B3/F3` or `C3/E3` change → clear+fill only input ranges for `fecha+turno`; `H8:K17` + `G/P/Q/R` never touched `FORMULA` verbatim
+- [x] 3.3 Enforce `fecha` native DATE (`getFullYear/getMonth/getDate` no `formatDate`) + audit `Utilities.formatDate(...,La_Paz)` only, invalid blocks that form no partial write
 
 ## Phase 4: Testing / Verification
 
-- [ ] 4.1 Create `apps-script/yarn-inventory/tests/yarn-inventory.test.gs` harness (no runner) — boundary untouched, PK rowIndex fallback, void re-activate, `creado` preserved, invalid block, lock `⏳→❌`, ≤10/≤47
-- [ ] 4.2 Verify on COPY `1RCupngk5x95ev5N4Zv0veMMbOhz6eH_9Vs44a1txE3s` only: `Guardar Todo` sequential ≤10+≤47 per `fecha+turno`, clearing→`void` re-adding→`active`, formulas recalc
-- [ ] 4.3 Final guard: grep no `getRange("` outside `Config.gs`, no file outside `apps-script/yarn-inventory/` changed, headers frozen
+- [x] 4.1 Create `apps-script/yarn-inventory/tests/yarn-inventory.test.gs` harness (no runner) — boundary untouched, PK rowIndex fallback, void re-activate, `creado` preserved, invalid block, lock `⏳→❌`, ≤10/≤47
+- [x] 4.2 Verify on COPY `1RCupngk5x95ev5N4Zv0veMMbOhz6eH_9Vs44a1txE3s` only: `Guardar Todo` sequential ≤10+≤47 per `fecha+turno`, clearing→`void` re-adding→`active`, formulas recalc
+- [x] 4.3 Final guard: grep no `getRange("` outside `Config.gs`, no file outside `apps-script/yarn-inventory/` changed, headers frozen
+
