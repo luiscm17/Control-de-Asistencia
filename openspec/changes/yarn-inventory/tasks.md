@@ -32,10 +32,10 @@ Chain strategy: stacked-to-main
 
 ## Phase 2: Core Implementation
 
-- [ ] 2.1 Create `apps-script/yarn-inventory/Repository.gs` with `EnsureDbSheets_/LoadState_/BuildIndex_` batch `getRange(2,1,last-1,w)` for `db_madejeras`/`db_lotes`, `fecha` native DATE
-- [ ] 2.2 Create `apps-script/yarn-inventory/Ingest.gs` with `ReadMadejeras/LotesSnapshot_` only `C8:G17` + `A6:F52`/`H6:O52` via Config, trim/CI validate DATE + turno/sup/inv, eligibility `titulo_base+cabos`/`objetivo_neto`, ignore >52
-- [ ] 2.3 Create `apps-script/yarn-inventory/Persistence.gs` with `BuildMadejeras/LotesPlan_` PK `yyyy-MM-dd-turno-maquina-lado` / `fecha-turno-lote_id|row6..52` last-wins `⚠️`, `void`→`active`, `creado` preserved `actualizado/editado_por` `La_Paz` only
-- [ ] 2.4 Implement `guardarMadejeras/guardarLotes/guardarTodo` single `LockService.tryLock(5000)`+1 retry, `Todo` sequential partial not rolled back, idempotent, toasts `✅/⏳/❌/⚠️`
+- [x] 2.1 Create `apps-script/yarn-inventory/Repository.gs` with `EnsureDbSheets_/LoadState_/BuildIndex_` batch `getRange(2,1,last-1,w)` for `db_madejeras`/`db_lotes`, `fecha` native DATE
+- [x] 2.2 Create `apps-script/yarn-inventory/Ingest.gs` with `ReadMadejeras/LotesSnapshot_` only `C8:G17` + `A6:F52`/`H6:O52` via Config, trim/CI validate DATE + turno/sup/inv, eligibility `titulo_base+cabos`/`objetivo_neto`, ignore >52
+- [x] 2.3 Create `apps-script/yarn-inventory/Persistence.gs` with `BuildMadejeras/LotesPlan_` PK `yyyy-MM-dd-turno-maquina-lado` / `fecha-turno-lote_id|row6..52` last-wins `⚠️`, `void`→`active`, `creado` preserved `actualizado/editado_por` `La_Paz` only
+- [x] 2.4 Implement `guardarMadejeras/guardarLotes/guardarTodo` single `LockService.tryLock(5000)`+1 retry, `Todo` sequential partial not rolled back, idempotent, toasts `✅/⏳/❌/⚠️`
 
 ## Phase 3: Integration / Wiring
 
