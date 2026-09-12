@@ -1,12 +1,19 @@
 /**
- * Menu.gs — Inventario menu + hydration (fecha+turno) for Yarn Inventory.
+ * Menu.gs — Inventario menu + hydration (fecha+turno) + mobile checkboxes for Yarn Inventory.
  *
- * Menu: Inventario → Guardar Madejeras | Guardar Lotes | Guardar Todo
- *       + Ver db_madejeras | Ver db_lotes | Re-sincronizar
+ * Menu: Inventario → Guardar Madejeras | Guardar Lotes | Re-sincronizar (3 items only)
  * Hydration: B3/F3 (madejeras) or C3/E3 (lotes) change → clear input-only
  *            then fill matching PK fecha+turno from DB. Formulas never touched:
  *            madejeras H8:K17 (H=IF(D>0,C/D,0) I=H*E J=IF(F>0,I/F,0) K=IF(G>0,I/G,0))
  *            lotes G6:G52 META, P6:P52 TOTAL, Q6:Q52 AJUSTE, R6:R52 ESTADO.
+ * Mobile:  G3 label "Guardar" + G4 checkbox (vertical G3:G4) for madejeras,
+ *          J3 label "Guardar" + K3 checkbox (horizontal J3:K3) for lotes.
+ *          Each FALSE→TRUE strict (normalize TRUE/FALSE/VERDADERO/FALSO, oldValue '' allowed).
+ *          Debounce via getNote() yarn-inventory-save:timestamp + tryLock 1000, then
+ *          guardarMadejeras/guardarLotes under tryLock 5000+retry, toast ✅/⚠️/⏳/❌,
+ *          always reset checkbox to FALSE in finally + clearNote + flush.
+ *          Single installable handler yarnInventoryMobileOnEdit branches by sheet+range.
+ *          Hydration (B3/F3, C3/E3) never triggered by checkbox edits.
  * Timezone: fecha native DATE via getFullYear/getMonth/getDate (no formatDate);
  *           audit creado/actualizado via Utilities.formatDate(...,America/La_Paz) only.
  * No literal getRange("A1") outside Config.gs — always via yarnInventoryGetRange_.
@@ -22,10 +29,6 @@ function onOpen() {
   ui.createMenu('Inventario')
     .addItem('Guardar Madejeras', 'guardarMadejeras')
     .addItem('Guardar Lotes', 'guardarLotes')
-    .addItem('Guardar Todo', 'guardarTodo')
-    .addSeparator()
-    .addItem('Ver db_madejeras', 'yarnInventoryMenuVerMadejeras')
-    .addItem('Ver db_lotes', 'yarnInventoryMenuVerLotes')
     .addSeparator()
     .addItem('Re-sincronizar', 'yarnInventoryMenuResincronizar')
     .addToUi();
@@ -38,40 +41,123 @@ function onEdit(e) {
 
 // --- MENU ACTIONS (public, no trailing underscore) ---
 
-function yarnInventoryMenuVerMadejeras() {
-  yarnInventoryActivateSheet_(YARN_INVENTORY_CONFIG.SHEETS.DB_MADEJERAS);
-}
-
-function yarnInventoryMenuVerLotes() {
-  yarnInventoryActivateSheet_(YARN_INVENTORY_CONFIG.SHEETS.DB_LOTES);
-}
-
 function yarnInventoryMenuResincronizar() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   yarnInventoryEnsureSchema(ss);
-  yarnInventoryEnsureEditTrigger_();
+  yarnInventoryEnsureMobileCheckboxTriggers_();
   ss.toast('\u2705 Esquema verificado — db_madejeras/db_lotes/Errors listos', 'Inventario', 5);
 }
 
-function yarnInventoryActivateSheet_(sheetName) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(sheetName);
-  if (!sheet) {
-    // Recreate via Config then retry
-    yarnInventoryEnsureSchema(ss);
-    sheet = ss.getSheetByName(sheetName);
-  }
-  if (!sheet) throw new Error(sheetName + ' is unavailable. Run Re-sincronizar first.');
-  ss.setActiveSheet(sheet);
-}
-
-function yarnInventoryEnsureEditTrigger_() {
-  var handler = 'yarnInventoryOnEdit';
-  var exists = ScriptApp.getProjectTriggers().some(function (t) {
+function yarnInventoryEnsureMobileCheckboxTriggers_() {
+  var handler = YARN_INVENTORY_CONFIG.MOBILE_SAVE_HANDLER;
+  var triggers = ScriptApp.getProjectTriggers();
+  var exists = triggers.some(function (t) {
     return t.getHandlerFunction() === handler && t.getEventType() === ScriptApp.EventType.ON_EDIT;
   });
   if (!exists) {
     ScriptApp.newTrigger(handler).forSpreadsheet(SpreadsheetApp.getActive()).onEdit().create();
+  }
+}
+
+// --- MOBILE CHECKBOX HELPERS (yarn-production M4 style, always reset) ---
+
+function yarnInventoryNormalizeCheckboxValue_(v) {
+  if (v === true) return 'TRUE';
+  if (v === false) return 'FALSE';
+  var s = String(v == null ? '' : v).trim().toUpperCase();
+  if (s === 'VERDADERO') return 'TRUE';
+  if (s === 'FALSO') return 'FALSE';
+  return s;
+}
+
+function yarnInventoryIsMadejerasCheckboxEvent_(e) {
+  if (!e || !e.range) return false;
+  var valNorm = yarnInventoryNormalizeCheckboxValue_(e.value);
+  var oldNorm = yarnInventoryNormalizeCheckboxValue_(e.oldValue);
+  var rawOld = String(e.oldValue == null ? '' : e.oldValue).trim();
+  var oldIsFalse = oldNorm === 'FALSE' || rawOld === '';
+  if (valNorm !== 'TRUE' || !oldIsFalse) return false;
+  var range = e.range;
+  if (range.getNumRows() !== 1 || range.getNumColumns() !== 1) return false;
+  var sheet = range.getSheet();
+  if (sheet.getName() !== YARN_INVENTORY_CONFIG.SHEETS.MADEJERAS) return false;
+  var pos = yarnInventoryParseA1_(YARN_INVENTORY_CONFIG.RANGES.MADEJERAS_CHECKBOX);
+  return range.getRow() === pos.row && range.getColumn() === pos.col;
+}
+
+function yarnInventoryIsLotesCheckboxEvent_(e) {
+  if (!e || !e.range) return false;
+  var valNorm = yarnInventoryNormalizeCheckboxValue_(e.value);
+  var oldNorm = yarnInventoryNormalizeCheckboxValue_(e.oldValue);
+  var rawOld = String(e.oldValue == null ? '' : e.oldValue).trim();
+  var oldIsFalse = oldNorm === 'FALSE' || rawOld === '';
+  if (valNorm !== 'TRUE' || !oldIsFalse) return false;
+  var range = e.range;
+  if (range.getNumRows() !== 1 || range.getNumColumns() !== 1) return false;
+  var sheet = range.getSheet();
+  if (sheet.getName() !== YARN_INVENTORY_CONFIG.SHEETS.LOTES) return false;
+  var pos = yarnInventoryParseA1_(YARN_INVENTORY_CONFIG.RANGES.LOTES_CHECKBOX);
+  return range.getRow() === pos.row && range.getColumn() === pos.col;
+}
+
+function yarnInventoryIsMobileSaveDebounced_(marker, now) {
+  var prefix = YARN_INVENTORY_CONFIG.MOBILE_SAVE_NOTE_PREFIX;
+  // Escape prefix for regex
+  var escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  var re = new RegExp('^' + escaped + '(\\d+)$');
+  var m = re.exec(String(marker || ''));
+  return Boolean(m) && now - Number(m[1]) < YARN_INVENTORY_CONFIG.MOBILE_SAVE_DEBOUNCE_MS;
+}
+
+function yarnInventoryTryStartMobileSave_(range) {
+  var lock = LockService.getDocumentLock();
+  var locked = false;
+  try {
+    locked = lock.tryLock(1000);
+    if (!locked) return false;
+    var now = new Date().getTime();
+    if (yarnInventoryIsMobileSaveDebounced_(range.getNote(), now)) return false;
+    range.setNote(YARN_INVENTORY_CONFIG.MOBILE_SAVE_NOTE_PREFIX + now);
+    return true;
+  } finally {
+    if (locked) try { lock.releaseLock(); } catch (ignore) {}
+  }
+}
+
+function yarnInventoryFinishMobileSave_(range) {
+  try { range.clearNote(); } catch (ignore) {}
+}
+
+/**
+ * Single installable handler for both mobile checkboxes.
+ * Branches by sheet+range, debounce via note+lock, always resets to FALSE.
+ * Must not trigger hydration logic (B3/F3 and C3/E3 only).
+ */
+function yarnInventoryMobileOnEdit(e) {
+  if (!e || !e.range) return;
+  var isMadejeras = false;
+  var isLotes = false;
+  try { isMadejeras = yarnInventoryIsMadejerasCheckboxEvent_(e); } catch (ignore) {}
+  try { isLotes = yarnInventoryIsLotesCheckboxEvent_(e); } catch (ignore2) {}
+  if (!isMadejeras && !isLotes) return;
+  var range = e.range;
+  if (!yarnInventoryTryStartMobileSave_(range)) return;
+  try {
+    if (isMadejeras) {
+      guardarMadejeras();
+    } else if (isLotes) {
+      guardarLotes();
+    }
+  } catch (err) {
+    Logger.log('yarnInventoryMobileOnEdit error: ' + (err && err.message ? err.message : String(err)) + ' stack: ' + (err && err.stack ? err.stack : ''));
+    try {
+      var ssErr = e.source || SpreadsheetApp.getActiveSpreadsheet();
+      ssErr.toast('\u274c Error al guardar: ' + (err && err.message ? err.message : String(err)), 'Inventario', 7);
+    } catch (ignore3) {}
+  } finally {
+    try { range.setValue(false); } catch (ignore4) {}
+    yarnInventoryFinishMobileSave_(range);
+    try { SpreadsheetApp.flush(); } catch (ignore5) {}
   }
 }
 

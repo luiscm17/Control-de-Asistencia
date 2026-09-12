@@ -31,10 +31,14 @@ var YARN_INVENTORY_CONFIG = Object.freeze({
       VUELTAS: 'J8:J17',
       TIEMPO: 'K8:K17'
     }),
+    MADEJERAS_LABEL: 'G3',
+    MADEJERAS_CHECKBOX: 'G4',
     LOTES_DATE: 'C3',
     LOTES_TURNO: 'E3',
     LOTES_SUP: 'G3',
     LOTES_INV: 'I3',
+    LOTES_LABEL: 'J3',
+    LOTES_CHECKBOX: 'K3',
     LOTES_INPUTS_A: 'A6:F52',
     LOTES_INPUTS_B: 'H6:O52',
     LOTES_FORMULAS: Object.freeze({
@@ -44,6 +48,9 @@ var YARN_INVENTORY_CONFIG = Object.freeze({
       ESTADO: 'R6:R52'
     })
   }),
+  MOBILE_SAVE_DEBOUNCE_MS: 3000,
+  MOBILE_SAVE_HANDLER: 'yarnInventoryMobileOnEdit',
+  MOBILE_SAVE_NOTE_PREFIX: 'yarn-inventory-save:',
   MADEJERAS_HEADERS: Object.freeze([
     'id', 'fecha', 'turno', 'supervisor', 'inventario', 'maquina', 'lado',
     'titulo_base', 'cabos', 'peso_deseado', 'tamano_aspa', 'velocidad',
@@ -209,7 +216,51 @@ function yarnInventoryEnsureSchema(optSpreadsheet) {
   yarnInventoryEnsureTableSheet_(ss, 'DB_MADEJERAS', YARN_INVENTORY_CONFIG.MADEJERAS_HEADERS, YARN_INVENTORY_CONFIG.UI.DB_MADEJERAS_COLOR);
   yarnInventoryEnsureTableSheet_(ss, 'DB_LOTES', YARN_INVENTORY_CONFIG.LOTES_HEADERS, YARN_INVENTORY_CONFIG.UI.DB_LOTES_COLOR);
   yarnInventoryEnsureTableSheet_(ss, 'ERRORS', YARN_INVENTORY_CONFIG.ERRORS_HEADERS, YARN_INVENTORY_CONFIG.UI.ERRORS_COLOR);
+  yarnInventoryConfigureMobileCheckboxes_(ss);
   SpreadsheetApp.flush();
+}
+
+function yarnInventoryConfigureMobileCheckboxes_(ss) {
+  var spreadsheet = ss || SpreadsheetApp.getActiveSpreadsheet();
+  try {
+    var madejerasSheet = yarnInventoryGetSheet_(spreadsheet, 'MADEJERAS');
+    if (madejerasSheet) {
+      var labelM = yarnInventoryGetRange_(madejerasSheet, YARN_INVENTORY_CONFIG.RANGES.MADEJERAS_LABEL);
+      var checkboxM = yarnInventoryGetRange_(madejerasSheet, YARN_INVENTORY_CONFIG.RANGES.MADEJERAS_CHECKBOX);
+      var ruleM = SpreadsheetApp.newDataValidation().requireCheckbox().setAllowInvalid(false).setHelpText('Marcar para guardar madejeras.').build();
+      checkboxM.setDataValidation(ruleM);
+      try {
+        var curM = checkboxM.getValue();
+        if (curM !== false) {
+          // Normalize any TRUE/VERDADERO/empty string to FALSE so user can re-tap
+          checkboxM.setValue(false);
+        }
+      } catch (e1) {
+        try { checkboxM.setValue(false); } catch (ignore) {}
+      }
+      if (String(labelM.getDisplayValue() || '').trim() === '') labelM.setValue('Guardar');
+      labelM.setFontWeight('bold').setFontSize(10).setVerticalAlignment('middle').setFontColor('#174ea6');
+      checkboxM.setHorizontalAlignment('center').setVerticalAlignment('middle').setBackground('#e8f0fe').setBorder(true, true, true, true, true, true, '#1a73e8', SpreadsheetApp.BorderStyle.SOLID);
+    }
+  } catch (e) { Logger.log('yarnInventoryConfigureMobileCheckboxes_ madejeras: ' + e.message); }
+  try {
+    var lotesSheet = yarnInventoryGetSheet_(spreadsheet, 'LOTES');
+    if (lotesSheet) {
+      var labelL = yarnInventoryGetRange_(lotesSheet, YARN_INVENTORY_CONFIG.RANGES.LOTES_LABEL);
+      var checkboxL = yarnInventoryGetRange_(lotesSheet, YARN_INVENTORY_CONFIG.RANGES.LOTES_CHECKBOX);
+      var ruleL = SpreadsheetApp.newDataValidation().requireCheckbox().setAllowInvalid(false).setHelpText('Marcar para guardar lotes.').build();
+      checkboxL.setDataValidation(ruleL);
+      try {
+        var curL = checkboxL.getValue();
+        if (curL !== false) checkboxL.setValue(false);
+      } catch (e2) {
+        try { checkboxL.setValue(false); } catch (ignore2) {}
+      }
+      if (String(labelL.getDisplayValue() || '').trim() === '') labelL.setValue('Guardar');
+      labelL.setFontWeight('bold').setFontSize(10).setVerticalAlignment('middle').setFontColor('#174ea6');
+      checkboxL.setHorizontalAlignment('center').setVerticalAlignment('middle').setBackground('#e8f0fe').setBorder(true, true, true, true, true, true, '#1a73e8', SpreadsheetApp.BorderStyle.SOLID);
+    }
+  } catch (e3) { Logger.log('yarnInventoryConfigureMobileCheckboxes_ lotes: ' + e3.message); }
 }
 
 function yarnInventoryEnsureTableSheet_(ss, sheetKey, headers, headerColor) {

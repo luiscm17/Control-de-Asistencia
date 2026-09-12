@@ -334,16 +334,110 @@ function yarnInventoryTestParseHelpers_() {
 }
 
 function yarnInventoryTestMenuGuards_() {
-  // Menu onOpen must create Inventario menu with Guardar Madejeras/Lotes/Todo + Ver db_* + Re-sincronizar
-  // Verify Menu.gs presence via function existence (Apps Script global)
+  // Menu onOpen must create Inventario menu with Guardar Madejeras | Guardar Lotes | Re-sincronizar (3 items only)
   yarnInventoryAssert_(typeof onOpen === 'function', 'onOpen must exist.');
   yarnInventoryAssert_(typeof yarnInventoryOnEdit === 'function', 'yarnInventoryOnEdit must exist.');
   yarnInventoryAssert_(typeof guardarMadejeras === 'function', 'guardarMadejeras must exist.');
   yarnInventoryAssert_(typeof guardarLotes === 'function', 'guardarLotes must exist.');
-  yarnInventoryAssert_(typeof guardarTodo === 'function', 'guardarTodo must exist.');
-  yarnInventoryAssert_(typeof yarnInventoryMenuVerMadejeras === 'function', 'Ver db_madejeras must exist.');
-  yarnInventoryAssert_(typeof yarnInventoryMenuVerLotes === 'function', 'Ver db_lotes must exist.');
   yarnInventoryAssert_(typeof yarnInventoryMenuResincronizar === 'function', 'Re-sincronizar must exist.');
+  // Overengineering removed: Guardar Todo and Ver db_* must NOT exist
+  yarnInventoryAssert_(typeof guardarTodo === 'undefined', 'guardarTodo must be removed (menu cleanup).');
+  yarnInventoryAssert_(typeof yarnInventoryMenuVerMadejeras === 'undefined', 'Ver db_madejeras must be removed.');
+  yarnInventoryAssert_(typeof yarnInventoryMenuVerLotes === 'undefined', 'Ver db_lotes must be removed.');
+  yarnInventoryAssert_(typeof yarnInventoryActivateSheet_ === 'undefined', 'ActivateSheet helper must be removed.');
+}
+
+function yarnInventoryTestMobileCheckboxConfig_() {
+  var cfg = YARN_INVENTORY_CONFIG;
+  yarnInventoryAssert_(cfg.RANGES.MADEJERAS_LABEL === 'G3', 'MADEJERAS_LABEL must be G3.');
+  yarnInventoryAssert_(cfg.RANGES.MADEJERAS_CHECKBOX === 'G4', 'MADEJERAS_CHECKBOX must be G4.');
+  yarnInventoryAssert_(cfg.RANGES.LOTES_LABEL === 'J3', 'LOTES_LABEL must be J3.');
+  yarnInventoryAssert_(cfg.RANGES.LOTES_CHECKBOX === 'K3', 'LOTES_CHECKBOX must be K3.');
+  yarnInventoryAssert_(cfg.MOBILE_SAVE_DEBOUNCE_MS === 3000, 'MOBILE_SAVE_DEBOUNCE_MS 3000.');
+  yarnInventoryAssert_(cfg.MOBILE_SAVE_HANDLER === 'yarnInventoryMobileOnEdit', 'MOBILE_SAVE_HANDLER must be yarnInventoryMobileOnEdit.');
+  yarnInventoryAssert_(cfg.MOBILE_SAVE_NOTE_PREFIX === 'yarn-inventory-save:', 'NOTE_PREFIX must be yarn-inventory-save:.');
+  yarnInventoryAssert_(typeof yarnInventoryMobileOnEdit === 'function', 'yarnInventoryMobileOnEdit must exist.');
+  yarnInventoryAssert_(typeof yarnInventoryEnsureMobileCheckboxTriggers_ === 'function', 'EnsureMobileCheckboxTriggers must exist.');
+  // Checkboxes must not collide with hydration filters B3/F3 and C3/E3
+  var madejerasCheckbox = yarnInventoryParseA1_(cfg.RANGES.MADEJERAS_CHECKBOX);
+  var madejerasDate = yarnInventoryParseA1_(cfg.RANGES.MADEJERAS_DATE);
+  var madejerasTurno = yarnInventoryParseA1_(cfg.RANGES.MADEJERAS_TURNO);
+  yarnInventoryAssert_(madejerasCheckbox.row !== madejerasDate.row || madejerasCheckbox.col !== madejerasDate.col, 'G4 must not equal B3.');
+  yarnInventoryAssert_(madejerasCheckbox.row !== madejerasTurno.row || madejerasCheckbox.col !== madejerasTurno.col, 'G4 must not equal F3.');
+  var lotesCheckbox = yarnInventoryParseA1_(cfg.RANGES.LOTES_CHECKBOX);
+  var lotesDate = yarnInventoryParseA1_(cfg.RANGES.LOTES_DATE);
+  var lotesTurno = yarnInventoryParseA1_(cfg.RANGES.LOTES_TURNO);
+  yarnInventoryAssert_(lotesCheckbox.row !== lotesDate.row || lotesCheckbox.col !== lotesDate.col, 'K3 must not equal C3.');
+  yarnInventoryAssert_(lotesCheckbox.row !== lotesTurno.row || lotesCheckbox.col !== lotesTurno.col, 'K3 must not equal E3.');
+}
+
+function yarnInventoryTestMobileDebounce_() {
+  // Debounce via note prefix + 3000ms window
+  var prefix = YARN_INVENTORY_CONFIG.MOBILE_SAVE_NOTE_PREFIX;
+  var now = 1000000;
+  yarnInventoryAssert_(yarnInventoryIsMobileSaveDebounced_(prefix + String(now - 1000), now) === true, 'Within 3000ms must be debounced.');
+  yarnInventoryAssert_(yarnInventoryIsMobileSaveDebounced_(prefix + String(now - 4000), now) === false, 'Beyond 3000ms must not be debounced.');
+  yarnInventoryAssert_(yarnInventoryIsMobileSaveDebounced_('', now) === false, 'Empty note not debounced.');
+  yarnInventoryAssert_(yarnInventoryIsMobileSaveDebounced_(null, now) === false, 'Null note not debounced.');
+  // TryStart with mocked range and lock
+  var noteStore = '';
+  var fakeRange = {
+    getNote: function () { return noteStore; },
+    setNote: function (v) { noteStore = v; },
+    clearNote: function () { noteStore = ''; }
+  };
+  // Mock LockService for test
+  var origLockService = (typeof LockService !== 'undefined') ? LockService : null;
+  if (typeof LockService === 'undefined') {
+    this.LockService = { getDocumentLock: function () { return { tryLock: function () { return true; }, releaseLock: function () {} }; } };
+  }
+  var originalGetDocLock = LockService.getDocumentLock;
+  LockService.getDocumentLock = function () { return { tryLock: function () { return true; }, releaseLock: function () {} }; };
+  var first = yarnInventoryTryStartMobileSave_(fakeRange);
+  yarnInventoryAssert_(first === true, 'First tryStart must succeed.');
+  yarnInventoryAssert_(noteStore.indexOf(prefix) === 0, 'Note must be set with prefix.');
+  var second = yarnInventoryTryStartMobileSave_(fakeRange);
+  yarnInventoryAssert_(second === false, 'Second immediate tryStart must be debounced.');
+  yarnInventoryFinishMobileSave_(fakeRange);
+  yarnInventoryAssert_(fakeRange.getNote() === '', 'Finish must clear note.');
+  // Restore
+  LockService.getDocumentLock = originalGetDocLock;
+  if (!origLockService) { try { delete this.LockService; } catch (ignore) {} }
+  // Checkbox normalization
+  yarnInventoryAssert_(yarnInventoryNormalizeCheckboxValue_(true) === 'TRUE', 'true -> TRUE');
+  yarnInventoryAssert_(yarnInventoryNormalizeCheckboxValue_(false) === 'FALSE', 'false -> FALSE');
+  yarnInventoryAssert_(yarnInventoryNormalizeCheckboxValue_('VERDADERO') === 'TRUE', 'VERDADERO -> TRUE');
+  yarnInventoryAssert_(yarnInventoryNormalizeCheckboxValue_('FALSO') === 'FALSE', 'FALSO -> FALSE');
+  yarnInventoryAssert_(yarnInventoryNormalizeCheckboxValue_('verdadero') === 'TRUE', 'case-insensitive VERDADERO');
+  yarnInventoryAssert_(yarnInventoryNormalizeCheckboxValue_('') === '', 'empty stays empty');
+}
+
+function yarnInventoryTestCheckboxEventFiltering_() {
+  // Ensure hydrate filter does NOT match checkbox cells
+  var fakeMadejerasCheckboxRange = {
+    getSheet: function () { return { getName: function () { return YARN_INVENTORY_CONFIG.SHEETS.MADEJERAS; } }; },
+    getRow: function () { return yarnInventoryParseA1_(YARN_INVENTORY_CONFIG.RANGES.MADEJERAS_CHECKBOX).row; },
+    getColumn: function () { return yarnInventoryParseA1_(YARN_INVENTORY_CONFIG.RANGES.MADEJERAS_CHECKBOX).col; },
+    getNumRows: function () { return 1; },
+    getNumColumns: function () { return 1; }
+  };
+  var fakeLotesCheckboxRange = {
+    getSheet: function () { return { getName: function () { return YARN_INVENTORY_CONFIG.SHEETS.LOTES; } }; },
+    getRow: function () { return yarnInventoryParseA1_(YARN_INVENTORY_CONFIG.RANGES.LOTES_CHECKBOX).row; },
+    getColumn: function () { return yarnInventoryParseA1_(YARN_INVENTORY_CONFIG.RANGES.LOTES_CHECKBOX).col; },
+    getNumRows: function () { return 1; },
+    getNumColumns: function () { return 1; }
+  };
+  yarnInventoryAssert_(yarnInventoryIsMadejerasFilterEdit_({ range: fakeMadejerasCheckboxRange }) === false, 'G4 must not trigger madejeras hydration.');
+  yarnInventoryAssert_(yarnInventoryIsLotesFilterEdit_({ range: fakeLotesCheckboxRange }) === false, 'K3 must not trigger lotes hydration.');
+  // Checkbox event requires FALSE->TRUE strict
+  var posM = yarnInventoryParseA1_(YARN_INVENTORY_CONFIG.RANGES.MADEJERAS_CHECKBOX);
+  var sheetM = { getName: function () { return YARN_INVENTORY_CONFIG.SHEETS.MADEJERAS; } };
+  var rangeM = { getSheet: function () { return sheetM; }, getRow: function () { return posM.row; }, getColumn: function () { return posM.col; }, getNumRows: function () { return 1; }, getNumColumns: function () { return 1; } };
+  yarnInventoryAssert_(yarnInventoryIsMadejerasCheckboxEvent_({ range: rangeM, value: 'TRUE', oldValue: 'FALSE' }) === true, 'FALSE->TRUE must be valid.');
+  yarnInventoryAssert_(yarnInventoryIsMadejerasCheckboxEvent_({ range: rangeM, value: 'TRUE', oldValue: '' }) === true, 'empty->TRUE must be valid first time.');
+  yarnInventoryAssert_(yarnInventoryIsMadejerasCheckboxEvent_({ range: rangeM, value: 'TRUE', oldValue: 'TRUE' }) === false, 'TRUE->TRUE must not trigger.');
+  yarnInventoryAssert_(yarnInventoryIsMadejerasCheckboxEvent_({ range: rangeM, value: 'FALSE', oldValue: 'TRUE' }) === false, 'TRUE->FALSE must not trigger.');
 }
 
 function yarnInventoryRunTests_() {
@@ -361,7 +455,10 @@ function yarnInventoryRunTests_() {
     yarnInventoryTestLockExhaustion_,
     yarnInventoryTestHydrationInputOnly_,
     yarnInventoryTestParseHelpers_,
-    yarnInventoryTestMenuGuards_
+    yarnInventoryTestMenuGuards_,
+    yarnInventoryTestMobileCheckboxConfig_,
+    yarnInventoryTestMobileDebounce_,
+    yarnInventoryTestCheckboxEventFiltering_
   ];
   var passed = 0;
   var failed = [];
