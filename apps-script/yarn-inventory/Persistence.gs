@@ -3,8 +3,8 @@
  *
  * PKs: db_madejeras yyyy-MM-dd-turno-maquina-lado (A/B); db_lotes
  *      fecha-turno-lote_id or fecha-turno-row6..52 fallback last-wins.
- * Audit: fecha native DATE as-is (Date at noon); creado preserved;
- *        actualizado/editado_por via America/La_Paz only.
+ * Audit: fecha native DATE raw passthrough (getValue()/setValues() as-is, no new Date/noon/UTC);
+ *        creado preserved; actualizado/editado_por via America/La_Paz only.
  * Lock: single LockService.tryLock(5000)+1 retry per save; Todo sequential.
  * Input-only DB cols 17/24; 2 DBs; no formula columns stored.
  */

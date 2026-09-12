@@ -87,7 +87,7 @@ function yarnInventoryReadMadejerasSnapshot_(optSpreadsheet) {
 
   // Input-only C8:G17 — nunca H8:K17
   var inputs = yarnInventoryGetRange_(sheet, YARN_INVENTORY_CONFIG.RANGES.MADEJERAS_INPUTS).getValues();
-  var fechaDate = yarnInventoryDateFromKey_(fechaKey);
+  var fechaDate = dateVal; // raw Date as-is, no conversion — preserving native dd/MM/yyyy
   var rows = [];
   for (var i = 0; i < inputs.length; i++) {
     var r = inputs[i];
@@ -172,7 +172,7 @@ function yarnInventoryReadLotesSnapshot_(optSpreadsheet) {
   // Input-only A6:F52 + H6:O52 — nunca G/P/Q/R formulas
   var inputsA = yarnInventoryGetRange_(sheet, YARN_INVENTORY_CONFIG.RANGES.LOTES_INPUTS_A).getValues();
   var inputsB = yarnInventoryGetRange_(sheet, YARN_INVENTORY_CONFIG.RANGES.LOTES_INPUTS_B).getValues();
-  var fechaDate = yarnInventoryDateFromKey_(fechaKey);
+  var fechaDate = dateVal; // raw Date as-is, no conversion — preserving native dd/MM/yyyy
   var rows = [];
   var maxRows = Math.min(inputsA.length, YARN_INVENTORY_CONFIG.LIMITS.LOTES_PER_DAY);
   // inputsA/B length is 47 (6..52). Beyond 52 is ignored by definition.

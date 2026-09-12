@@ -68,14 +68,4 @@ function yarnInventoryBuildIndex_(rows, idCol) {
   return byId;
 }
 
-/**
- * Helper: Date object at noon from yyyy-MM-dd key (no timezone shift).
- * Mirrors conerasDateFromKey_ but uses inventory helpers.
- */
-function yarnInventoryDateFromKey_(key) {
-  var raw = String(key || '').trim();
-  var m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return new Date(NaN);
-  var y = Number(m[1]); var mo = Number(m[2]); var da = Number(m[3]);
-  return new Date(y, mo - 1, da, 12, 0, 0);
-}
+

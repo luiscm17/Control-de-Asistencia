@@ -156,7 +156,8 @@ function yarnInventoryGetRange_(sheet, a1Range) {
   return sheet.getRange(r.r1, r.c1, r.r2 - r.r1 + 1, r.c2 - r.c1 + 1);
 }
 
-// --- Fecha: native DATE without timezone ---
+// --- Fecha: native DATE passthrough (raw getValue/setValues, no new Date) ---
+// For ID/filter/hydration comparison only — fecha column itself is stored as raw Date.
 
 function yarnInventoryDateKey_(value) {
   if (value instanceof Date && !isNaN(value.getTime())) {
@@ -170,15 +171,13 @@ function yarnInventoryDateKey_(value) {
   var iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (iso) {
     var yr = Number(iso[1]); var mo = Number(iso[2]); var da = Number(iso[3]);
-    var dt = new Date(Date.UTC(yr, mo - 1, da));
-    if (dt.getUTCFullYear() !== yr || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== da) return '';
+    if (mo < 1 || mo > 12 || da < 1 || da > 31) return '';
     return yr + '-' + String(mo).padStart(2, '0') + '-' + String(da).padStart(2, '0');
   }
   var dm = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (!dm) return '';
   var dd = Number(dm[1]); var mm = Number(dm[2]); var yy = Number(dm[3]);
-  var d2 = new Date(Date.UTC(yy, mm - 1, dd));
-  if (d2.getUTCFullYear() !== yy || d2.getUTCMonth() !== mm - 1 || d2.getUTCDate() !== dd) return '';
+  if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return '';
   return yy + '-' + String(mm).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
 }
 
@@ -280,12 +279,12 @@ function yarnInventoryEnsureTableSheet_(ss, sheetKey, headers, headerColor) {
   // Number formats for DB columns
   try {
     if (sheetKey === 'DB_MADEJERAS' && sheet.getMaxRows() > 1) {
-      // B fecha as native DATE
-      sheet.getRange(2, YARN_INVENTORY_CONFIG.IDX_MADEJERAS.FECHA + 1, Math.max(1, sheet.getMaxRows() - 1), 1).setNumberFormat('yyyy-MM-dd');
+      // B fecha as native DATE dd/MM/yyyy — raw passthrough, no conversion
+      sheet.getRange(2, YARN_INVENTORY_CONFIG.IDX_MADEJERAS.FECHA + 1, Math.max(1, sheet.getMaxRows() - 1), 1).setNumberFormat('dd/MM/yyyy');
       sheet.getRange(2, YARN_INVENTORY_CONFIG.IDX_MADEJERAS.CREADO + 1, Math.max(1, sheet.getMaxRows() - 1), 2).setNumberFormat('yyyy-MM-dd HH:mm:ss');
     }
     if (sheetKey === 'DB_LOTES' && sheet.getMaxRows() > 1) {
-      sheet.getRange(2, YARN_INVENTORY_CONFIG.IDX_LOTES.FECHA + 1, Math.max(1, sheet.getMaxRows() - 1), 1).setNumberFormat('yyyy-MM-dd');
+      sheet.getRange(2, YARN_INVENTORY_CONFIG.IDX_LOTES.FECHA + 1, Math.max(1, sheet.getMaxRows() - 1), 1).setNumberFormat('dd/MM/yyyy');
       sheet.getRange(2, YARN_INVENTORY_CONFIG.IDX_LOTES.CREADO + 1, Math.max(1, sheet.getMaxRows() - 1), 2).setNumberFormat('yyyy-MM-dd HH:mm:ss');
     }
   } catch (e) {
