@@ -6,7 +6,8 @@
  * Audit: fecha native DATE raw passthrough (getValue()/setValues() as-is, no new Date/noon/UTC);
  *        creado preserved; actualizado/editado_por via America/La_Paz only.
  * Lock: single LockService.tryLock(5000)+1 retry per save; Todo sequential.
- * Input-only DB cols 17/24; 2 DBs; no formula columns stored.
+ * Input-only DB cols 17/25 (total_pesado snapshot of P6:P52 =SUM(H:O), never cleared on hydration);
+ * 2 DBs; no formula columns stored except total_pesado numeric snapshot.
  */
 
 // --- Lock helper ---
@@ -186,6 +187,7 @@ function yarnInventoryBuildLotesPlan_(snapshot, state) {
     values[YARN_INVENTORY_CONFIG.IDX_LOTES.PESADA_6] = rowL.pesada_6;
     values[YARN_INVENTORY_CONFIG.IDX_LOTES.PESADA_7] = rowL.pesada_7;
     values[YARN_INVENTORY_CONFIG.IDX_LOTES.PESADA_8] = rowL.pesada_8;
+    values[YARN_INVENTORY_CONFIG.IDX_LOTES.TOTAL_PESADO] = rowL.total_pesado;
     values[YARN_INVENTORY_CONFIG.IDX_LOTES.CREADO] = creado;
     values[YARN_INVENTORY_CONFIG.IDX_LOTES.ACTUALIZADO] = timestamp;
     values[YARN_INVENTORY_CONFIG.IDX_LOTES.EDITADO_POR] = editor;

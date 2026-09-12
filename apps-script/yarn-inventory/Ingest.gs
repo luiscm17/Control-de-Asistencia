@@ -1,11 +1,13 @@
 /**
  * Ingest.gs — Input-only snapshots for madejeras (C8:G17) and lotes (A6:F52+H6:O52).
  *
- * Never reads H8:K17 or G/P/Q/R formula ranges. All A1 references via
- * YARN_INVENTORY_CONFIG (SSOT). Validation trimmed + case-insensitive vs
- * TURNO/SUP/INV lists; fecha via yarnInventoryDateKey_ (native DATE, no TZ).
- * Eligibility: madejeras titulo_base + cabos present; lotes objetivo_neto present.
- * Rows beyond 52 ignored (Config limit).
+ * Never reads H8:K17 or G/P/Q/R formula ranges except P6:P52 snapshot for
+ * total_pesado (read-only numeric =SUM(H:O), never cleared on hydration).
+ * All A1 references via YARN_INVENTORY_CONFIG (SSOT). Validation trimmed +
+ * case-insensitive vs TURNO/SUP/INV lists; fecha via yarnInventoryDateKey_
+ * (native DATE, no TZ). Eligibility: madejeras all 5 strict (C:G) mandatory;
+ * lotes 8 mandatory (A-E + H-J) strict, F+K:O optional. titulo "2/18" stays
+ * string via getDisplayValues + DB text '@'. Rows beyond 52 ignored.
  */
 
 // --- Shared helpers ---
@@ -100,8 +102,11 @@ function yarnInventoryReadMadejerasSnapshot_(optSpreadsheet) {
 
     var tituloNum = yarnInventoryNumber_(tituloBase);
     var cabosNum = yarnInventoryNumber_(cabos);
-    // Eligibility: titulo_base + cabos present (numeric). Empty -> skip (EC-03) and later void if existed.
-    var eligible = tituloNum !== null && cabosNum !== null;
+    var pesoNum = yarnInventoryNumber_(peso);
+    var tamanoNum = yarnInventoryNumber_(tamano);
+    var velocidadNum = yarnInventoryNumber_(velocidad);
+    // Strict: all 5 in C8:G17 mandatory — no optional. Empty/invalid -> skip and later void if existed.
+    var eligible = tituloNum !== null && cabosNum !== null && pesoNum !== null && tamanoNum !== null && velocidadNum !== null;
 
     // Keep raw display values for DB but normalize numbers when eligible
     var sheetRow = 8 + i;
@@ -169,9 +174,11 @@ function yarnInventoryReadLotesSnapshot_(optSpreadsheet) {
     'invalid_inventario', 'Invalid inventario I3: ' + invVal,
     YARN_INVENTORY_CONFIG.RANGES.LOTES_INV, '\u26a0\ufe0f Valor no v\u00e1lido en Inventario: ' + String(invVal || '').trim());
 
-  // Input-only A6:F52 + H6:O52 — nunca G/P/Q/R formulas
+  // Input-only A6:F52 + H6:O52 — nunca G/P/Q/R formulas (P snapshot only for total_pesado)
   var inputsA = yarnInventoryGetRange_(sheet, YARN_INVENTORY_CONFIG.RANGES.LOTES_INPUTS_A).getValues();
+  var inputsADisplay = yarnInventoryGetRange_(sheet, YARN_INVENTORY_CONFIG.RANGES.LOTES_INPUTS_A).getDisplayValues();
   var inputsB = yarnInventoryGetRange_(sheet, YARN_INVENTORY_CONFIG.RANGES.LOTES_INPUTS_B).getValues();
+  var totalPesadoValues = yarnInventoryGetRange_(sheet, YARN_INVENTORY_CONFIG.RANGES.LOTES_FORMULAS.TOTAL).getValues();
   var fechaDate = dateVal; // raw Date as-is, no conversion — preserving native dd/MM/yyyy
   var rows = [];
   var maxRows = Math.min(inputsA.length, YARN_INVENTORY_CONFIG.LIMITS.LOTES_PER_DAY);
@@ -183,21 +190,34 @@ function yarnInventoryReadLotesSnapshot_(optSpreadsheet) {
     var loteId = String(a[0] || '').trim();
     var tipoOrden = String(a[1] || '').trim();
     var color = String(a[2] || '').trim();
-    var titulo = String(a[3] || '').trim();
+    // titulo "2/18" must stay string — capture as string, no timezone conversion
+    var titulo = String(inputsADisplay[i] ? inputsADisplay[i][3] || '' : '').trim();
+    if (!titulo) titulo = String(a[3] || '').trim();
     var objetivoRaw = a[4];
     var aumentoRaw = a[5];
 
     var objetivoNum = yarnInventoryNumber_(objetivoRaw);
     var aumentoNum = yarnInventoryNumber_(aumentoRaw);
-    // Validation for tipo_orden when row eligible: if present must be in list otherwise block? For now skip invalid rows and warn later via plan.
-    var eligible = objetivoNum !== null;
-    // Pesadas H6:O52 (8 cols)
+    // Pesadas H6:O52 (8 cols) — H,I,J mandatory (pesada_1..3), K:O optional
     var pesadas = [];
     for (var p = 0; p < 8; p++) {
       var v = b[p];
       var n = yarnInventoryNumber_(v);
       pesadas.push(n !== null ? n : (String(v || '').trim() === '' ? '' : String(v).trim()));
     }
+    var pesada1Num = yarnInventoryNumber_(b[0]);
+    var pesada2Num = yarnInventoryNumber_(b[1]);
+    var pesada3Num = yarnInventoryNumber_(b[2]);
+    // total_pesado snapshot from P6:P52 =SUM(H:O) — numeric, never cleared on hydration
+    var totalPesadoRaw = totalPesadoValues[i] ? totalPesadoValues[i][0] : '';
+    var totalPesadoNum = yarnInventoryNumber_(totalPesadoRaw);
+    var total_pesado = totalPesadoNum !== null ? totalPesadoNum : (String(totalPesadoRaw || '').trim() === '' ? '' : String(totalPesadoRaw).trim());
+    // Strict: 8 mandatory A-E + H-J (lote_id, tipo_orden valid, color, titulo, objetivo_neto, pesada_1..3). F + K:O optional.
+    var hasLoteId = loteId !== '';
+    var hasTipoOrden = yarnInventoryIsTipoOrden_(tipoOrden);
+    var hasColor = color !== '';
+    var hasTitulo = titulo !== '';
+    var eligible = hasLoteId && hasTipoOrden && hasColor && hasTitulo && objetivoNum !== null && pesada1Num !== null && pesada2Num !== null && pesada3Num !== null;
 
     rows.push({
       idx: i,
@@ -211,6 +231,7 @@ function yarnInventoryReadLotesSnapshot_(optSpreadsheet) {
       pesada_1: pesadas[0], pesada_2: pesadas[1], pesada_3: pesadas[2], pesada_4: pesadas[3],
       pesada_5: pesadas[4], pesada_6: pesadas[5], pesada_7: pesadas[6], pesada_8: pesadas[7],
       pesadas: pesadas,
+      total_pesado: total_pesado,
       rango_origen: YARN_INVENTORY_CONFIG.SHEETS.LOTES + '!A' + sheetRow + ':O' + sheetRow,
       eligible: eligible
     });

@@ -1,7 +1,7 @@
 /**
  * Config.gs — Frozen SSOT for the isolated Yarn Inventory Apps Script project.
  *
- * Single source of truth for sheets, A1 ranges, headers (A:Q 17 + A:X 24),
+ * Single source of truth for sheets, A1 ranges, headers (A:Q 17 + A:Y 25),
  * PK indexes, turno/supervisor/inventario lists, limits and formula guards.
  * No literal `getRange("A1")` outside this file — use helpers below.
  *
@@ -60,6 +60,7 @@ var YARN_INVENTORY_CONFIG = Object.freeze({
     'id', 'fecha', 'turno', 'supervisor', 'inventario', 'lote_id', 'tipo_orden',
     'color', 'titulo', 'objetivo_neto', 'aumento',
     'pesada_1', 'pesada_2', 'pesada_3', 'pesada_4', 'pesada_5', 'pesada_6', 'pesada_7', 'pesada_8',
+    'total_pesado',
     'creado', 'actualizado', 'editado_por', 'rango_origen', 'estado'
   ]),
   ERRORS_HEADERS: Object.freeze([
@@ -74,7 +75,8 @@ var YARN_INVENTORY_CONFIG = Object.freeze({
     ID: 0, FECHA: 1, TURNO: 2, SUPERVISOR: 3, INVENTARIO: 4, LOTE_ID: 5, TIPO_ORDEN: 6,
     COLOR: 7, TITULO: 8, OBJETIVO_NETO: 9, AUMENTO: 10,
     PESADA_1: 11, PESADA_2: 12, PESADA_3: 13, PESADA_4: 14, PESADA_5: 15, PESADA_6: 16, PESADA_7: 17, PESADA_8: 18,
-    CREADO: 19, ACTUALIZADO: 20, EDITADO_POR: 21, RANGO_ORIGEN: 22, ESTADO: 23
+    TOTAL_PESADO: 19,
+    CREADO: 20, ACTUALIZADO: 21, EDITADO_POR: 22, RANGO_ORIGEN: 23, ESTADO: 24
   }),
   IDX_ERRORS: Object.freeze({
     TIMESTAMP: 0, SCOPE: 1, RANGE: 2, CODE: 3, REASON: 4, USER: 5
@@ -90,7 +92,7 @@ var YARN_INVENTORY_CONFIG = Object.freeze({
     LOTES_MAX_ROW: 52,
     LOTES_SHEET_MAX_ROW: 1002,
     DB_MADEJERAS_COLUMNS: 17,
-    DB_LOTES_COLUMNS: 24,
+    DB_LOTES_COLUMNS: 25,
     ERROR_COLUMNS: 6
   }),
   UI: Object.freeze({
@@ -285,6 +287,8 @@ function yarnInventoryEnsureTableSheet_(ss, sheetKey, headers, headerColor) {
     }
     if (sheetKey === 'DB_LOTES' && sheet.getMaxRows() > 1) {
       sheet.getRange(2, YARN_INVENTORY_CONFIG.IDX_LOTES.FECHA + 1, Math.max(1, sheet.getMaxRows() - 1), 1).setNumberFormat('dd/MM/yyyy');
+      // titulo (I) must stay text '@' to preserve "2/18" string and avoid date confusion
+      sheet.getRange(2, YARN_INVENTORY_CONFIG.IDX_LOTES.TITULO + 1, Math.max(1, sheet.getMaxRows() - 1), 1).setNumberFormat('@');
       sheet.getRange(2, YARN_INVENTORY_CONFIG.IDX_LOTES.CREADO + 1, Math.max(1, sheet.getMaxRows() - 1), 2).setNumberFormat('yyyy-MM-dd HH:mm:ss');
     }
   } catch (e) {

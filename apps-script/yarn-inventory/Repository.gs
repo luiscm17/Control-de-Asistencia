@@ -1,9 +1,10 @@
 /**
  * Repository.gs — Batched DB access for Yarn Inventory (2 tables).
  *
- * Batch reads db_madejeras A:Q (17) + db_lotes A:X (24) via numeric
+ * Batch reads db_madejeras A:Q (17) + db_lotes A:Y (25) via numeric
  * getRange(2,1,last-1,w) with Config widths. fecha is native DATE
- * (kept as Date object), never formatted via timezone.
+ * (kept as Date object), never formatted via timezone. total_pesado (A:Y col T)
+ * is numeric snapshot of lotes!P6:P52 =SUM(H:O), never hydrated back.
  *
  * Guard helpers use Config SHEETS / LIMITS / IDX. No literal A1 outside Config.
  */
