@@ -32,8 +32,8 @@ Chain strategy: stacked-to-main
 
 ## Phase 2: Persistence
 
-- [ ] 2.1 Create `apps-script/dyeing/Ingest.gs` batch `C3+B6:E15+B18:E25` — G:`E11=60` `E12="@ 24/1"` W:read T:`H/S:V` NUMBER else STRING `@`/passthrough; Verify:types; Dep:1.2
-- [ ] 2.2 Create `apps-script/dyeing/Persistence.gs` Map `A→row` upsert `H/S:V 0.00` — G:`A=C3` exists W:upsert T:`B:Y` overwrite preserve `Z` all-empty→`void`; Verify:LT-042 x2→1 row; Dep:2.1
+- [x] 2.1 Create `apps-script/dyeing/Ingest.gs` batch `C3+B6:E15+B18:E25` — G:`E11=60` `E12="@ 24/1"` W:read T:`H/S:V` NUMBER else STRING `@`/passthrough; Verify:types; Dep:1.2
+- [x] 2.2 Create `apps-script/dyeing/Persistence.gs` Map `A→row` upsert `H/S:V 0.00` — G:`A=C3` exists W:upsert T:`B:Y` overwrite preserve `Z` all-empty→`void`; Verify:LT-042 x2→1 row; Dep:2.1
 
 ## Phase 3: Core
 
