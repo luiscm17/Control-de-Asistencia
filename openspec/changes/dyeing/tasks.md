@@ -26,9 +26,9 @@ Chain strategy: stacked-to-main
 
 ## Phase 1: Config
 
-- [ ] 1.1 Create `apps-script/dyeing/appsscript.json` La_Paz V8 — G:install W:load T:La_Paz; Verify:reload ok; Dep:none
-- [ ] 1.2 Create `apps-script/dyeing/Config.gs` `DYEING_CONFIG` `C3/G4/B6:E15/B18:E25/A1:AD1` 30col `A:AD` — G:missing W:ensure T:`A:AD`+`G4 FALSE`; Verify:delete→ensure AD; Dep:1.1
-- [ ] 1.3 Create `apps-script/dyeing/Errors.gs` `dyeingLogError_` La_Paz — G:`C3=""` W:log T:`Errors` row; Verify:empty→Errors; Dep:1.2
+- [x] 1.1 Create `apps-script/dyeing/appsscript.json` La_Paz V8 — G:install W:load T:La_Paz; Verify:reload ok; Dep:none
+- [x] 1.2 Create `apps-script/dyeing/Config.gs` `DYEING_CONFIG` `C3/G4/B6:E15/B18:E25/A1:AD1` 30col `A:AD` — G:missing W:ensure T:`A:AD`+`G4 FALSE`; Verify:delete→ensure AD; Dep:1.1
+- [x] 1.3 Create `apps-script/dyeing/Errors.gs` `dyeingLogError_` La_Paz — G:`C3=""` W:log T:`Errors` row; Verify:empty→Errors; Dep:1.2
 
 ## Phase 2: Persistence
 
