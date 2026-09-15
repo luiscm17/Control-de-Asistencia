@@ -37,17 +37,17 @@ Chain strategy: stacked-to-main
 
 ## Phase 3: Core
 
-- [ ] 3.1 Create `apps-script/dyeing/Core.gs` `guardarLote()` guard `trim(C3)` — G:`C3=""` W:save T:block `⚠️ Ingresá ID Lote` reset `G4`; partial ok; Verify:empty vs partial; Dep:2.2
-- [ ] 3.2 Extend `apps-script/dyeing/Core.gs` `LockService` 5s+retry audit La_Paz `Z/AA/AB` — G:concurrent W:lock T:serialize or `❌ Error — usá Re-sincronizar`; Verify:hold→block; Dep:3.1
-- [ ] 3.3 Add `dyeingHydrate_()` in `apps-script/dyeing/Core.gs` Re-sincronizar — G:`LT-042` exists W:hydrate T:`B6:E15+B18:E25`; missing→`— sin registros` empty→`⚠️` no auto; Verify:3 cases; Dep:3.2
+- [x] 3.1 Create `apps-script/dyeing/Core.gs` `guardarLote()` guard `trim(C3)` — G:`C3=""` W:save T:block `⚠️ Ingresá ID Lote` reset `G4`; partial ok; Verify:empty vs partial; Dep:2.2
+- [x] 3.2 Extend `apps-script/dyeing/Core.gs` `LockService` 5s+retry audit La_Paz `Z/AA/AB` — G:concurrent W:lock T:serialize or `❌ Error — usá Re-sincronizar`; Verify:hold→block; Dep:3.1
+- [x] 3.3 Add `dyeingHydrate_()` in `apps-script/dyeing/Core.gs` Re-sincronizar — G:`LT-042` exists W:hydrate T:`B6:E15+B18:E25`; missing→`— sin registros` empty→`⚠️` no auto; Verify:3 cases; Dep:3.2
 
 ## Phase 4: Menu/Setup
 
-- [ ] 4.1 Create `apps-script/dyeing/Menu.gs` `onOpen` `Teñido → Guardar|Re-sincronizar` + `dyeingOnEdit` `G4` debounce 3000 `PropertiesService`→`G4=FALSE` — G:double-tap <3s W:second `TRUE` T:ignore `⏳`; Verify:1s apart 1 write; Dep:3.3
-- [ ] 4.2 Create `apps-script/dyeing/Setup.gs` `dyeingSetup()` trigger+`A:AD` fix — G:install W:setup T:trigger exists; Verify:remove→setup exists; Dep:4.1
-- [ ] 4.3 Wire toasts `✅ Guardado: {ID} — {Color} {Código} por {user}` in `apps-script/dyeing/Core.gs` — G:success/fail W:save T:correct toast; Verify:both; Dep:4.2
+- [x] 4.1 Create `apps-script/dyeing/Menu.gs` `onOpen` `Teñido → Guardar|Re-sincronizar` + `dyeingOnEdit` `G4` debounce 3000 `PropertiesService`→`G4=FALSE` — G:double-tap <3s W:second `TRUE` T:ignore `⏳`; Verify:1s apart 1 write; Dep:3.3
+- [x] 4.2 Create `apps-script/dyeing/Setup.gs` `dyeingSetup()` trigger+`A:AD` fix — G:install W:setup T:trigger exists; Verify:remove→setup exists; Dep:4.1
+- [x] 4.3 Wire toasts `✅ Guardado: {ID} — {Color} {Código} por {user}` in `apps-script/dyeing/Core.gs` — G:success/fail W:save T:correct toast; Verify:both; Dep:4.2
 
 ## Phase 5: Harness
 
-- [ ] 5.1 Create `apps-script/dyeing/tests/dyeing.test.gs` Logger `dyeingTestHelpers_` — G:helpers W:run T:trim/typed/debounce/void ✅; Verify:Run→Logger ✅; Dep:4.3
-- [ ] 5.2 E2E COPY two-times fill — G:day1 Teñido save Re-sync day3 Muestra W:save T:same row `H/S:V` NUMBER `E12 @` `creado` preserved `items`/`G4` untouched; Verify:full flow; Dep:5.1
+- [x] 5.1 Create `apps-script/dyeing/tests/dyeing.test.gs` Logger `dyeingTestHelpers_` — G:helpers W:run T:trim/typed/debounce/void ✅; Verify:Run→Logger ✅; Dep:4.3
+- [x] 5.2 E2E COPY two-times fill — G:day1 Teñido save Re-sync day3 Muestra W:save T:same row `H/S:V` NUMBER `E12 @` `creado` preserved `items`/`G4` untouched; Verify:full flow; Dep:5.1
