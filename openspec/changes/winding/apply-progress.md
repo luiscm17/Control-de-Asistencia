@@ -43,9 +43,9 @@
 
 | Evidence | Exact result |
 |---|---|
-| Focused test command | Node VM loading `Config.gs`, `Snapshot.gs`, `Repository.gs`, `Menu.gs`, and `tests/Winding.test.gs`, then running `windingTestHelpers_` with a La Paz `Utilities.formatDate` stub — `manual-harness-pure-seams passed=20 failed=0`, exit 0. |
+| Focused test command | Node VM loading `Config.gs`, `Snapshot.gs`, `Repository.gs`, `Menu.gs`, and `tests/Winding.test.gs`, then running `windingTestHelpers_` with a La Paz `Utilities.formatDate` stub — `manual-harness-pure-seams passed=21 failed=0`, exit 0. |
 | Runtime harness | COPY-only `windingTestHelpers_`, setup, save/re-save, recovery, guarded automatic recovery, and corrective delete — **not executed** in this workspace because Apps Script runtime access is unavailable locally. Task 3.4 remains the human COPY runbook. |
-| Rollback boundary | Revert the Slice 3 code commit only to remove `Menu.gs`, recovery/delete repository helpers, and Phase 3 helper seams; it does not alter sibling Apps Script projects or clear DB/audit rows. |
+| Rollback boundary | Revert Slice 3 code commits `37c6637` and `b4c5246` only to remove `Menu.gs`, recovery/delete repository helpers, and Phase 3 helper seams; it does not alter sibling Apps Script projects or clear DB/audit rows. |
 
 ## Commits
 
@@ -58,6 +58,8 @@
 - `37c6637` — `feat(winding): add safe recovery workflow`
 - `0da6500` — `docs(winding): add workflow change context`
 - `0f00f59` — `docs(winding): finalize apply progress`
+- `12e6991` — `docs(winding): correct workflow evidence`
+- `b4c5246` — `test(winding): cover checkbox reset seam`
 
 ## Remaining Tasks
 
