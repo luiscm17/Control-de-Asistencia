@@ -26,7 +26,7 @@
 | Evidence | Exact result |
 |---|---|
 | Focused static command | `python3 -m json.tool apps-script/winding/appsscript.json`; `git show HEAD:apps-script/winding/{Config,Setup,tests/Winding.test}.gs \| node --check --input-type=commonjs`; `git diff --check main...HEAD` — exit 0. |
-| Static header/shape check | `git diff --stat main...HEAD` — 4 files changed, 284 insertions; `Config.gs` declares 26 DB headers with indexes `0..25`, and recovery contracts remain unimplemented RED seams. |
+| Static header/shape check | `git diff --stat main...HEAD` — Phase 1 established the 26 DB headers with indexes `0..25`; the implemented Phase 3 recovery contracts are documented below. |
 | Runtime harness | COPY-only `windingTestHelpers_` in the Apps Script editor — not executed locally because Apps Script cannot run in this workspace. Phase-3-only residual runtime verification remains; human must run it on a COPY. |
 | Rollback boundary | Revert commits `3c68590`, `ecb356b`, `da58e0e`, and `9d3f430` to remove only `apps-script/winding/`; no sibling Apps Script project was changed. |
 
@@ -57,6 +57,7 @@
 - `17b8d53` — `docs(winding): record snapshot persistence progress`
 - `37c6637` — `feat(winding): add safe recovery workflow`
 - `0da6500` — `docs(winding): add workflow change context`
+- `0f00f59` — `docs(winding): finalize apply progress`
 
 ## Remaining Tasks
 
