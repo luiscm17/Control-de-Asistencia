@@ -1,10 +1,11 @@
 /**
- * Ingest.gs — Typed batch snapshot for the isolated Dyeing (Tenido) project.
+ * Ingest.gs — Typed batch snapshot for the isolated Dyeing (Teñido) project.
  *
  * Reads only C3 + B6:E15 + B18:E25 via DYEING_CONFIG SSOT — never G4/items.
  * Typed invariant: H/S:V (E11/E21:E24) via getValue() as NUMBER native (0.00/General),
  * rest via getDisplayValue() as STRING — E12 "@ 24/1" verbatim, fechas C6/C18 passthrough dd/mm/yyyy.
  * No validation, no coercion — Sheets native type is truth.
+ * B:AA (26 cols) now includes C9 C.C. Teñido and C20 Sup. Muestra before Observación.
  * America/La_Paz only for audit (Persistence), never for C6/C18.
  */
 
@@ -28,7 +29,6 @@ function dyeingReadForm_(optSpreadsheet) {
   var c6 = String(tenDisplay[0][1] || '');
   var c7 = String(tenDisplay[1][1] || '');
   var c8 = String(tenDisplay[2][1] || '');
-  // C9 (teñido C.C.) has no DB column per frozen A:AD — read but not persisted (kept for completeness)
   var c9 = String(tenDisplay[3][1] || '');
   var e6 = String(tenDisplay[0][3] || '');
   var e7 = String(tenDisplay[1][3] || '');
@@ -59,19 +59,16 @@ function dyeingReadForm_(optSpreadsheet) {
   var e24 = dyeingNormalizeNumberCell_(e24Raw);
   var e25 = String(mueDisplay[7][3] || '');
 
-  // Build B:Y (24 cols) in DB order per DYEING_CONFIG.DB_HEADERS / IDX
+  // Build B:AA (26 cols) in DB order per DYEING_CONFIG.DB_HEADERS / IDX (A:AF 32)
   // 0:Color(E6) 1:Código(E7) 2:tipo(E8) 3:TituloMg(E12) 4:Material(E9) 5:Linea(E10) 6:Temp(E11 NUMBER)
-  // 7:Tina(E13) 8:NroIngreso(E14) 9:Cliente(E15) 10:FechaTenido(C6) 11:Sup(C8) 12:Turno(C7)
+  // 7:Tina(E13) 8:NroIngreso(E14) 9:Cliente(E15) 10:FechaTenido(C6) 11:Sup.Tenido(C8) 12:TurnoTenido(C7)
   // 13:Secado1(E18) 14:Secado2(E19) 15:Revision(E20) 16:FechaMuestreo(C18)
   // 17:Titulo1(E21 NUMBER) 18:Titulo2(E22 NUMBER) 19:Torsion1(E23 NUMBER) 20:Torsion2(E24 NUMBER)
-  // 21:C.C.(C21) 22:TurnoM(C19) 23:Obs(E25)
+  // 21:C.C.Muestra(C21) 22:TurnoM(C19) 23:Sup.Muestra(C20 NEW) 24:C.C.Tenido(C9 NEW) 25:Obs(E25)
   var dbBY = [
     e6, e7, e8, e12, e9, e10, e11, e13, e14, e15,
-    c6, c8, c7, e18, e19, e20, c18, e21, e22, e23, e24, c21, c19, e25
+    c6, c8, c7, e18, e19, e20, c18, e21, e22, e23, e24, c21, c19, c20, c9, e25
   ];
-
-  // Keep teñido C.C. (c9) and muestra Sup (c20) out of persistence — no DB slot per frozen A:AD
-  // They are read for completeness but intentionally excluded from dbBY to freeze header order.
 
   var isEmpty = dyeingIsEmptyBY_(dbBY);
 
@@ -118,15 +115,15 @@ function dyeingWriteForm_(optSpreadsheet, rowData) {
 
   var by;
   if (Array.isArray(rowData) && rowData.length === DYEING_CONFIG.LIMITS.COLS) {
-    by = rowData.slice(1, 25);
-  } else if (Array.isArray(rowData) && rowData.length === 24) {
+    by = rowData.slice(1, 27);
+  } else if (Array.isArray(rowData) && rowData.length === 26) {
     by = rowData;
   } else if (rowData && Array.isArray(rowData.dbBY)) {
     by = rowData.dbBY;
-  } else if (rowData && Array.isArray(rowData.values) && rowData.values.length === 30) {
-    by = rowData.values.slice(1, 25);
+  } else if (rowData && Array.isArray(rowData.values) && rowData.values.length === 32) {
+    by = rowData.values.slice(1, 27);
   } else {
-    throw new Error('dyeingWriteForm_ expects A:AD[30] or dbBY[24] or {dbBY}');
+    throw new Error('dyeingWriteForm_ expects A:AF[32] or dbBY[26] or {dbBY}');
   }
 
   var tenMat = dyeingEmptyMatrix_(10, 4);
@@ -135,6 +132,7 @@ function dyeingWriteForm_(optSpreadsheet, rowData) {
   tenMat[0][1] = by[10];
   tenMat[1][1] = by[12];
   tenMat[2][1] = by[11];
+  tenMat[3][1] = by[24];
   tenMat[0][3] = by[0];
   tenMat[1][3] = by[1];
   tenMat[2][3] = by[2];
@@ -148,6 +146,7 @@ function dyeingWriteForm_(optSpreadsheet, rowData) {
 
   mueMat[0][1] = by[16];
   mueMat[1][1] = by[22];
+  mueMat[2][1] = by[23];
   mueMat[3][1] = by[21];
   mueMat[0][3] = by[13];
   mueMat[1][3] = by[14];
@@ -156,7 +155,7 @@ function dyeingWriteForm_(optSpreadsheet, rowData) {
   mueMat[4][3] = by[18];
   mueMat[5][3] = by[19];
   mueMat[6][3] = by[20];
-  mueMat[7][3] = by[23];
+  mueMat[7][3] = by[25];
 
   // Preserve labels B6:B9, D6:D16, B18:B21, D18:D21 -> write only inputs C6:C9/E6:E15 and C18:C21/E18:E25
   tenidos.getRange('C6:C9').setValues([[tenMat[0][1]], [tenMat[1][1]], [tenMat[2][1]], [tenMat[3][1]]]);
@@ -164,7 +163,7 @@ function dyeingWriteForm_(optSpreadsheet, rowData) {
   tenidos.getRange('C18:C21').setValues([[mueMat[0][1]], [mueMat[1][1]], [mueMat[2][1]], [mueMat[3][1]]]);
   tenidos.getRange('E18:E25').setValues([[mueMat[0][3]], [mueMat[1][3]], [mueMat[2][3]], [mueMat[3][3]], [mueMat[4][3]], [mueMat[5][3]], [mueMat[6][3]], [mueMat[7][3]]]);
 
-  if (Array.isArray(rowData) && rowData.length === 30 && rowData[0]) {
+  if (Array.isArray(rowData) && rowData.length === 32 && rowData[0]) {
     dyeingGetRange_(tenidos, DYEING_CONFIG.RANGES.PK).setValue(String(rowData[0]));
   } else if (rowData && rowData.loteId) {
     dyeingGetRange_(tenidos, DYEING_CONFIG.RANGES.PK).setValue(String(rowData.loteId));

@@ -1,10 +1,11 @@
 /**
  * Persistence.gs — Map A->row upsert, typed H/S:V NUMBER 0.00, void/active, audit La_Paz.
  *
- * PK: A = trim(C3) -> "Nº Lote". Full B:Y overwrite (two-times fill via Re-sincronizar).
- * Audit: Z creado preserved, AA actualizado + AB editado_por refreshed, AC estado void/active,
- * AD rango_origen = "tenidos!C3:I25". No Lock here (Core PR3), idempotent via preserve Z.
+ * PK: A = trim(C3) -> "Nº Lote". Full B:AA overwrite (two-times fill via Re-sincronizar).
+ * Audit: AB creado preserved, AC actualizado + AD editado_por refreshed, AE estado void/active,
+ * AF rango_origen = "tenidos!C3:I25". No Lock here (Core PR3), idempotent via preserve AB.
  * H/S:V stored as NUMBER (getValue), rest STRING via getDisplayValue — no coercion.
+ * Width 32: A:AF.
  */
 
 function dyeingBuildDbState_(dbSheet) {
@@ -54,13 +55,13 @@ function dyeingBuildRowValues_(snapshot, state) {
   var loteId = String(snapshot.loteId || '').trim();
   if (!loteId) throw new Error('loteId required');
   var dbBY = snapshot.dbBY || [];
-  if (dbBY.length !== 24) throw new Error('dbBY must be 24 cols B:Y');
+  if (dbBY.length !== 26) throw new Error('dbBY must be 26 cols B:AA');
 
   var width = DYEING_CONFIG.LIMITS.COLS;
   var values = new Array(width);
   values[DYEING_CONFIG.IDX.LOTE] = loteId;
 
-  for (var i = 0; i < 24; i++) {
+  for (var i = 0; i < 26; i++) {
     values[1 + i] = dbBY[i];
   }
 
@@ -124,7 +125,7 @@ function dyeingUpsertLote_(optSpreadsheet, snapshot) {
     dbSheet.getRange(rowNum, 8, 1, 1).setNumberFormat('0.00');
     dbSheet.getRange(rowNum, 19, 1, 4).setNumberFormat('0.00');
     dbSheet.getRange(rowNum, 5, 1, 1).setNumberFormat('@');
-    dbSheet.getRange(rowNum, 26, 1, 2).setNumberFormat('yyyy-MM-dd HH:mm:ss');
+    dbSheet.getRange(rowNum, DYEING_CONFIG.IDX.CREADO + 1, 1, 2).setNumberFormat('yyyy-MM-dd HH:mm:ss');
   } catch (e) {}
 
   return {

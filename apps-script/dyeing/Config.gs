@@ -1,11 +1,22 @@
 /**
  * Config.gs — Frozen SSOT for the isolated Dyeing (Teñido) Apps Script project.
  *
- * Single source of truth for sheets, A1 ranges, headers (A:AD 30 cols),
+ * Single source of truth for sheets, A1 ranges, headers (A:AF 32 cols),
  * PK indexes, typed capture map, limits and UI debouncing.
  * No literal `getRange("A1")` outside this file — use helpers below.
  * Typed: H/S:V NUMBER (T(ºC), Titulo 1/2, Torsión 1/2), rest STRING (@ verbatim, fechas passthrough).
- * Audit (Z:AD) in America/La_Paz only.
+ * Audit (AB:AF) in America/La_Paz only.
+ * Layout A:AF (32 physical cols):
+ *   A Nº Lote (PK C3)
+ *   B Color (E6)  C Código (E7)  D tipo colorante (E8)  E Titulo m/g (E12 STRING @)
+ *   F Material (E9)  G Linea (E10)  H T(ºC) (E11 NUMBER)  I Tina (E13)  J Nº Ingreso (E14)
+ *   K Cliente (E15)  L Fecha Teñido (C6)  M Sup. Teñido (C8)  N Turno Teñido (C7)
+ *   O Secado 1 (E18)  P Secado 2 (E19)  Q Revisión (E20)  R Fecha Muestreo (C18)
+ *   S Titulo 1 (E21 NUMBER)  T Titulo 2 (E22 NUMBER)  U Torsión 1 (E23 NUMBER)  V Torsión 2 (E24 NUMBER)
+ *   W C.C. Muestra (C21)  X Turno Muestra (C19)  Y Sup. Muestra (C20 NEW)  Z C.C. Teñido (C9 NEW)
+ *   AA Observación (E25)
+ *   AB creado  AC actualizado  AD editado_por  AE estado  AF rango_origen
+ * New cols Y/Z (Sup. Muestra / C.C. Teñido) inserted before Observación to preserve audit at AB:AF.
  *
  * INSTALL: Extensions > Apps Script > paste this project > Save > Reload sheet
  * VERIFY:  Use a COPY of the live spreadsheet — never prod.
@@ -29,7 +40,7 @@ var DYEING_CONFIG = Object.freeze({
     LABEL: 'H4',
     TENIDO: 'B6:E15',
     MUESTRA: 'B18:E25',
-    DB_HEADERS: 'A1:AD1',
+    DB_HEADERS: 'A1:AF1',
     ERRORS_HEADERS: 'A1:F1'
   }),
   DB_HEADERS: Object.freeze([
@@ -45,8 +56,8 @@ var DYEING_CONFIG = Object.freeze({
     'Nº Ingreso',
     'Cliente',
     'Fecha Teñido',
-    'Sup.',
-    'Turno',
+    'Sup. Teñido',
+    'Turno Teñido',
     'Secado 1',
     'Secado 2',
     'Revisión',
@@ -55,8 +66,10 @@ var DYEING_CONFIG = Object.freeze({
     'Titulo 2',
     'Torsión 1',
     'Torsión 2',
-    'C.C.',
-    'Turno',
+    'C.C. Muestra',
+    'Turno Muestra',
+    'Sup. Muestra',
+    'C.C. Teñido',
     'Observación',
     'creado',
     'actualizado',
@@ -86,7 +99,9 @@ var DYEING_CONFIG = Object.freeze({
     CLIENTE: 10,
     FECHA_TENIDO: 11,
     SUP: 12,
+    SUP_TENIDO: 12,
     TURNO: 13,
+    TURNO_TENIDO: 13,
     SECADO1: 14,
     SECADO2: 15,
     REVISION: 16,
@@ -96,18 +111,25 @@ var DYEING_CONFIG = Object.freeze({
     TORSION1: 20,
     TORSION2: 21,
     CC: 22,
+    CC_MUESTRA: 22,
     TURNO_M: 23,
-    OBS: 24,
-    CREADO: 25,
-    ACTUALIZADO: 26,
-    EDITADO_POR: 27,
-    ESTADO: 28,
-    RANGO_ORIGEN: 29
+    TURNO_MUESTRA: 23,
+    SUP_MUESTRA: 24,
+    Y_SUP_MUESTRA: 24,
+    CC_TENIDO: 25,
+    Z_CC_TENIDO: 25,
+    OBS: 26,
+    OBSERVACION: 26,
+    CREADO: 27,
+    ACTUALIZADO: 28,
+    EDITADO_POR: 29,
+    ESTADO: 30,
+    RANGO_ORIGEN: 31
   }),
   // Columns that must be stored as NUMBER (native 0.00/General): H, S:V
   NUMBER_COLS: Object.freeze([7, 18, 19, 20, 21]),
   LIMITS: Object.freeze({
-    COLS: 30,
+    COLS: 32,
     ERROR_COLUMNS: 6
   }),
   UI: Object.freeze({
@@ -204,7 +226,7 @@ function dyeingHeadersMatch_(actual, expected) {
   return true;
 }
 
-// --- Schema: ensure db_tenidos A:AD + Errors A:F + G4 checkbox ---
+// --- Schema: ensure db_tenidos A:AF + Errors A:F + G4 checkbox ---
 
 function dyeingEnsureSchema(optSpreadsheet) {
   var ss = optSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
@@ -233,13 +255,13 @@ function dyeingEnsureTableSheet_(ss, sheetKey, headers, headerColor) {
     if (sheetKey === 'DB' && sheet.getMaxRows() > 1) {
       // H, S:V as NUMBER 0.00; dates/string passthrough
       var rows = Math.max(1, sheet.getMaxRows() - 1);
-      // H = col 8, S=19, T=20, U=21, V=22
+      // H = col 8, S=19, T=20, U=21, V=22 (unchanged; audit shifted to AB:AC)
       sheet.getRange(2, 8, rows, 1).setNumberFormat('0.00');
       sheet.getRange(2, 19, rows, 4).setNumberFormat('0.00');
       // E Titulo m/g must stay @ to preserve "@ 24/1"
       sheet.getRange(2, 5, rows, 1).setNumberFormat('@');
-      // Audit timestamps La_Paz
-      sheet.getRange(2, 26, rows, 2).setNumberFormat('yyyy-MM-dd HH:mm:ss');
+      // Audit timestamps La_Paz — AB:AC (cols 28-29, was Z:AA 26-27)
+      sheet.getRange(2, DYEING_CONFIG.IDX.CREADO + 1, rows, 2).setNumberFormat('yyyy-MM-dd HH:mm:ss');
     }
   } catch (e) {
     Logger.log('dyeingEnsureTableSheet_ format: ' + e.message);
