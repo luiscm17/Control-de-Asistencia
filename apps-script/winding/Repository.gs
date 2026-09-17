@@ -105,6 +105,50 @@ function windingBuildRecordValues_(record, timestamp, editor) {
     .concat([timestamp, editor]);
 }
 
+function windingLoadRecoveryRecords_(spreadsheet, fechaKey, turno) {
+  const dataSheet = spreadsheet.getSheetByName(WINDING_CONFIG.SHEETS.DATA);
+  if (!dataSheet) throw new Error('Data sheet is unavailable. Run windingSetup first.');
+
+  const lastRow = dataSheet.getLastRow();
+  const rows = lastRow < 2 ? [] : dataSheet.getRange(2, 1, lastRow - 1,
+    WINDING_CONFIG.DB_HEADERS.length).getValues();
+  return rows.filter(function (row) {
+    return windingNativeDateKey_(row[WINDING_CONFIG.IDX.FECHA]) === fechaKey &&
+      String(row[WINDING_CONFIG.IDX.TURNO] || '').trim() === turno;
+  }).map(function (row) {
+    return {
+      item: row[WINDING_CONFIG.IDX.ITEM],
+      supervisor: row[WINDING_CONFIG.IDX.SUPERVISOR],
+      color: row[WINDING_CONFIG.IDX.COLOR],
+      lote: row[WINDING_CONFIG.IDX.LOTE],
+      titulo: row[WINDING_CONFIG.IDX.TITULO],
+      operators: row.slice(WINDING_CONFIG.IDX.OP_01, WINDING_CONFIG.IDX.OP_15 + 1)
+    };
+  });
+}
+
+function windingDeleteRecord_(id, spreadsheet) {
+  const ss = spreadsheet || SpreadsheetApp.getActiveSpreadsheet();
+  return windingWithDocumentLock_(function () {
+    const dataSheet = ss.getSheetByName(WINDING_CONFIG.SHEETS.DATA);
+    if (!dataSheet) throw new Error('Data sheet is unavailable. Run windingSetup first.');
+    const indexed = windingLoadRecordIndex_(dataSheet);
+    if (!indexed.ok) {
+      windingAppendErrorUnlocked_(ss, 'corrections.delete', 'Duplicate id found in db_embolsado.',
+        windingEditorEmail_());
+      return { success: false, code: indexed.code };
+    }
+    const record = indexed.index[id];
+    if (!record) return { success: false, code: 'not_found' };
+
+    dataSheet.deleteRow(record.rowNumber);
+    windingAppendErrorUnlocked_(ss, 'corrections.delete', 'Deleted id ' + id + '.',
+      windingEditorEmail_());
+    SpreadsheetApp.flush();
+    return { success: true, code: 'ok' };
+  }, ss);
+}
+
 function windingAppendErrorUnlocked_(spreadsheet, context, detail, editor) {
   const errors = spreadsheet.getSheetByName(WINDING_CONFIG.SHEETS.ERRORS);
   if (!errors) throw new Error('Errors sheet is unavailable. Run windingSetup first.');
