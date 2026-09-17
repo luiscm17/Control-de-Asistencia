@@ -84,7 +84,30 @@ function dyeingMarkSaved_() {
   } catch (ignore) {}
 }
 
+function dyeingIsPkEdit_(e) {
+  if (!e || !e.range) return false;
+  var sheet = null;
+  try { sheet = e.range.getSheet(); } catch (ignore) { return false; }
+  if (!sheet || sheet.getName() !== DYEING_CONFIG.SHEETS.TENIDOS) return false;
+  var pos = dyeingParseA1_(DYEING_CONFIG.RANGES.PK);
+  return e.range.getRow() === pos.row && e.range.getColumn() === pos.col;
+}
+
 function dyeingOnEdit(e) {
+  // PK change -> auto-hydrate (like yarn-inventory Fecha+Turno but here ID Lote string)
+  if (dyeingIsPkEdit_(e)) {
+    try {
+      var loteRaw = String(e.range.getDisplayValue ? e.range.getDisplayValue() : e.value || '').trim();
+      // fallback to sheet value if event value is stale
+      if (!loteRaw) {
+        try { loteRaw = String(dyeingGetRange_(e.range.getSheet(), DYEING_CONFIG.RANGES.PK).getDisplayValue() || '').trim(); } catch (ignore) {}
+      }
+      if (!loteRaw) return;
+      // trigger hydrate async via simple call (explicit Re-sincronizar logic)
+      dyeingHydrate_();
+    } catch (ignore2) {}
+    return;
+  }
   if (!dyeingIsSaveCheckboxEvent_(e)) return;
   var ss = null;
   try { ss = (e && e.source) ? e.source : SpreadsheetApp.getActiveSpreadsheet(); } catch (ignore) {}

@@ -117,6 +117,17 @@ function dyeingHydrate_() {
   var row = null;
   try { row = dyeingFindDbRowForHydrate_(ss, loteId); } catch (e) { row = null; }
   if (!row) {
+    // ID Lote string not found -> clear only inputs for new lot, preserve labels B6:B9, D6:D16, B18:B21, D18:D21
+    try {
+      var tenidosForClear = dyeingGetSheet_(ss, 'TENIDOS');
+      if (tenidosForClear) {
+        tenidosForClear.getRange('C6:C9').clearContent();
+        tenidosForClear.getRange('E6:E15').clearContent();
+        tenidosForClear.getRange('C18:C21').clearContent();
+        tenidosForClear.getRange('E18:E25').clearContent();
+        SpreadsheetApp.flush();
+      }
+    } catch (ignoreClear) {}
     try { ss.toast('— sin registros para ' + loteId + ', listo para cargar', 'Teñido', 5); } catch (ignore) {}
     return 0;
   }

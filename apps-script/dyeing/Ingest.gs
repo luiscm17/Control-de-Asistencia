@@ -158,10 +158,11 @@ function dyeingWriteForm_(optSpreadsheet, rowData) {
   mueMat[6][3] = by[20];
   mueMat[7][3] = by[23];
 
-  var tenRange = dyeingGetRange_(tenidos, DYEING_CONFIG.RANGES.TENIDO);
-  var mueRange = dyeingGetRange_(tenidos, DYEING_CONFIG.RANGES.MUESTRA);
-  tenRange.setValues(tenMat);
-  mueRange.setValues(mueMat);
+  // Preserve labels B6:B9, D6:D16, B18:B21, D18:D21 -> write only inputs C6:C9/E6:E15 and C18:C21/E18:E25
+  tenidos.getRange('C6:C9').setValues([[tenMat[0][1]], [tenMat[1][1]], [tenMat[2][1]], [tenMat[3][1]]]);
+  tenidos.getRange('E6:E15').setValues([[tenMat[0][3]], [tenMat[1][3]], [tenMat[2][3]], [tenMat[3][3]], [tenMat[4][3]], [tenMat[5][3]], [tenMat[6][3]], [tenMat[7][3]], [tenMat[8][3]], [tenMat[9][3]]]);
+  tenidos.getRange('C18:C21').setValues([[mueMat[0][1]], [mueMat[1][1]], [mueMat[2][1]], [mueMat[3][1]]]);
+  tenidos.getRange('E18:E25').setValues([[mueMat[0][3]], [mueMat[1][3]], [mueMat[2][3]], [mueMat[3][3]], [mueMat[4][3]], [mueMat[5][3]], [mueMat[6][3]], [mueMat[7][3]]]);
 
   if (Array.isArray(rowData) && rowData.length === 30 && rowData[0]) {
     dyeingGetRange_(tenidos, DYEING_CONFIG.RANGES.PK).setValue(String(rowData[0]));
