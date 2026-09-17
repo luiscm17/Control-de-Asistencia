@@ -39,9 +39,9 @@ Chain strategy: feature-branch-chain (user-selected)
 
 ## Phase 3: Workflow and Safe Recovery
 
-- [ ] 3.1 Extend `apps-script/winding/tests/Winding.test.gs` with RED seams for FALSE→TRUE-only routing/reset-on-failure, guarded auto-recovery, E exclusion, supervisor restore, and confirmed corrective delete.
-- [ ] 3.2 Create `apps-script/winding/Menu.gs` with `Winding` save/recover actions, `windingOnEdit` finally-reset of M4, and Correcciones deletion prompt/ID confirmation/audit.
-- [ ] 3.3 Add menu-first and guarded recovery orchestration in `apps-script/winding/Menu.gs`: read once, write only B:D/F:T, restore L4, and toast when populated B12:T23 blocks auto-recovery.
+- [x] 3.1 Extend `apps-script/winding/tests/Winding.test.gs` with RED seams for FALSE→TRUE-only routing/reset-on-failure, guarded auto-recovery, E exclusion, supervisor restore, and confirmed corrective delete.
+- [x] 3.2 Create `apps-script/winding/Menu.gs` with `Winding` save/recover actions, `windingOnEdit` finally-reset of M4, and Correcciones deletion prompt/ID confirmation/audit.
+- [x] 3.3 Add menu-first and guarded recovery orchestration in `apps-script/winding/Menu.gs`: read once, write only B:D/F:T, restore L4, and toast when populated B12:T23 blocks auto-recovery.
 - [ ] 3.4 Run `windingTestHelpers_` in the Apps Script editor on a COPY; verify Logger `✅/❌`, one trigger, M4 reset, recovery E-exclusion/formula preservation, guarded-auto-recovery toast, and delete audit.
 
 ## Phase 4: Copy-only Rollout Verification
