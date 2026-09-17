@@ -56,6 +56,7 @@
 - `32f9cd8` — `feat(winding): persist validated shift snapshots`
 - `17b8d53` — `docs(winding): record snapshot persistence progress`
 - `37c6637` — `feat(winding): add safe recovery workflow`
+- `0da6500` — `docs(winding): add workflow change context`
 
 ## Remaining Tasks
 
