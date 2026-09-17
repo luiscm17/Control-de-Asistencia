@@ -31,6 +31,11 @@ function onOpen() {
   }
 }
 
+// Simple trigger — delegates to dyeingOnEdit so G4 works even without installable trigger
+function onEdit(e) {
+  try { return dyeingOnEdit(e); } catch (ignore) {}
+}
+
 // Simple trigger delegate — allows sheet-bound onEdit without install
 function dyeingOnEditSimple(e) {
   return dyeingOnEdit(e);
