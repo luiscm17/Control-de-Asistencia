@@ -96,6 +96,14 @@ function windingTestHelpers_() {
     return windingIsSaveCheckboxEvent_({ value: 'TRUE', oldValue: undefined });
   }, false);
 
+  seam('checkbox reset writes FALSE after an attempted save', function () {
+    let value = null;
+    windingResetSaveCheckbox_({ getRange: function () {
+      return { setValue: function (nextValue) { value = nextValue; } };
+    } });
+    return value;
+  }, false);
+
   seam('guarded recovery permits a fully empty persisted zone', function () {
     return windingCanAutoRecover_(Array(12).fill(Array(19).fill('')));
   }, true);

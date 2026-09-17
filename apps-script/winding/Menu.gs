@@ -47,7 +47,7 @@ function windingOnEdit(event) {
     try {
       windingGuardarTurno();
     } finally {
-      form.getRange(WINDING_CONFIG.FORM.SAVE_CHECKBOX).setValue(false);
+      windingResetSaveCheckbox_(form);
       SpreadsheetApp.flush();
     }
     return;
@@ -61,6 +61,10 @@ function windingOnEdit(event) {
 
 function windingIsSaveCheckboxEvent_(event) {
   return event && event.value === 'TRUE' && event.oldValue === 'FALSE';
+}
+
+function windingResetSaveCheckbox_(form) {
+  form.getRange(WINDING_CONFIG.FORM.SAVE_CHECKBOX).setValue(false);
 }
 
 function windingRecuperarTurno() {
