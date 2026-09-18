@@ -1,11 +1,14 @@
 /**
- * Menu.gs — Explicit save, rehydration, and resync workflows (aligned to dyeing/coneras/yarn-inventory).
+ * Menu.gs — Explicit save and resync workflows (aligned to coneras/yarn-inventory).
  *
- * Menu: Winding -> Guardar turno | Recuperar turno | Re-sincronizar (3 items, no Correcciones)
+ * Menu: Winding -> Guardar turno | Re-sincronizar (2 items only — Recuperar turno removido por paridad)
  * Mobile/desktop: M4 checkbox FALSE->TRUE triggers installable windingOnEdit -> windingGuardarTurno
  *         debounce 3000ms via PropertiesService (winding-last-save-ms) + always reset M4=FALSE + flush.
  * onOpen: ensures schema/checkbox styling and trigger so the checkbox is visible before any manual save.
- * Re-sincronizar: idempotent ensureSchema + trigger reconciliation + toast (parity with yarn-inventory/coneras).
+ * Re-sincronizar: idempotent ensureSchema + trigger reconciliation + toast (parity con yarn-inventory/coneras).
+ * Rehidrate: H4 (Fecha) o J4 (Turno) cambian -> hydrate incondicional por fecha+turno:
+ *            limpia SOLO B12:D23 + F12:T23 + L4 (nunca E12:E23 formulas ni A12:A23), luego llena si hay
+ *            registros en db_embolsado; si no hay, deja limpio y toast "Nuevo turno — sin datos".
  *
  * Formula-owned E12:E23 is never a recovery target. All persistence flows are
  * delegated to Snapshot.gs and Repository.gs so this module only orchestrates
@@ -21,7 +24,6 @@ function onOpen() {
   try {
     SpreadsheetApp.getUi().createMenu('Winding')
       .addItem('Guardar turno', 'windingGuardarTurno')
-      .addItem('Recuperar turno', 'windingRecuperarTurno')
       .addItem('Re-sincronizar', 'windingResincronizar')
       .addToUi();
   } catch (e) {
@@ -96,11 +98,8 @@ function windingIsSaveCheckboxEvent_(event) {
   if (!event) return false;
   var valNorm = windingNormalizeCheckboxValue_(event.value);
   var oldNorm = windingNormalizeCheckboxValue_(event.oldValue);
-  // Allow explicit empty string '' as valid old FALSE (canonical mobile pattern),
-  // but keep undefined/null as invalid to satisfy harness strictness.
   var oldIsFalse = oldNorm === 'FALSE' || event.oldValue === '';
   if (valNorm !== 'TRUE' || !oldIsFalse) return false;
-  // Harness synthetic events have no range — accept value-only check
   if (!event.range) return true;
   var range = event.range;
   if (range.getNumRows() !== 1 || range.getNumColumns() !== 1) return false;
@@ -118,7 +117,6 @@ function windingOnEdit(event) {
   try { form = range.getSheet(); } catch (ignore) { return; }
   if (!form || form.getName() !== WINDING_CONFIG.SHEETS.FORM) return;
 
-  // Checkbox save path (installable + simple delegate)
   var isCheckbox = false;
   try { isCheckbox = windingIsSaveCheckboxEvent_(event); } catch (ignore2) {}
   if (isCheckbox) {
@@ -142,11 +140,15 @@ function windingOnEdit(event) {
     return;
   }
 
-  // Auto-recovery when date or turno changes (parity with coneras/yarn-inventory filter hydrate)
+  // Rehidrate incondicional por Fecha+Turno — parity con coneras/yarn-inventory
+  // Nunca disparado por el checkbox M4.
   var a1 = '';
   try { a1 = range.getA1Notation(); } catch (ignore10) {}
   if (a1 === WINDING_CONFIG.FORM.DATE || a1 === WINDING_CONFIG.FORM.TURNO) {
-    try { windingIntentarRecuperacionAutomatica_(event.source || SpreadsheetApp.getActiveSpreadsheet()); } catch (ignore11) {}
+    try {
+      // No guard: siempre hidrata — si hay datos los carga, si no limpia B:D + F:T + L4 (nunca E)
+      windingHydratePorFiltro_(event.source || SpreadsheetApp.getActiveSpreadsheet());
+    } catch (ignore11) {}
   }
 }
 
@@ -154,23 +156,35 @@ function windingResetSaveCheckbox_(form) {
   form.getRange(WINDING_CONFIG.FORM.SAVE_CHECKBOX).setValue(false);
 }
 
-function windingRecuperarTurno() {
-  return windingRecoverFromCurrentKeys_(SpreadsheetApp.getActiveSpreadsheet(), false);
+// --- Rehidrate central — incondicional, limpia solo rangos permitidos (nunca E12:E23) ---
+
+function windingHydratePorFiltro_(spreadsheet) {
+  var ss = spreadsheet || SpreadsheetApp.getActiveSpreadsheet();
+  var form = null;
+  try { form = windingRequireFormSheet_(ss); } catch (e) { return { success: false, code: 'missing_form' }; }
+  var keys = windingValidateSnapshotKeys_(
+    form.getRange(WINDING_CONFIG.FORM.DATE).getValue(),
+    form.getRange(WINDING_CONFIG.FORM.TURNO).getDisplayValue());
+  if (!keys.ok) {
+    // Claves inválidas -> no tocar el form, solo avisar (parity yarn-inventory/coneras no borra en clave inválida)
+    ss.toast('No se puede cargar: completá fecha y turno válidos.', 'Winding', 5);
+    return { success: false, code: keys.code };
+  }
+  return windingRecoverFromCurrentKeys_(ss, false);
 }
 
+// Legacy alias — antes era guardado con check de zona vacía; ahora delega a hydrate incondicional
 function windingIntentarRecuperacionAutomatica_(spreadsheet) {
-  const ss = spreadsheet || SpreadsheetApp.getActiveSpreadsheet();
-  const form = windingRequireFormSheet_(ss);
-  const zone = form.getRange(WINDING_CONFIG.FORM.PERSISTED_ZONE).getDisplayValues();
-  if (!windingCanAutoRecover_(zone)) {
-    ss.toast('Hay datos en el formulario. Usá Winding > Recuperar turno para evitar sobrescribirlos.',
-      'Winding', 5);
-    return { success: false, code: 'recovery_requires_menu' };
-  }
-  return windingRecoverFromCurrentKeys_(ss, true);
+  return windingHydratePorFiltro_(spreadsheet);
+}
+
+// Legacy menu item — mantenido por compatibilidad pero ya no expuesto (usar hydrate automático por Fecha+Turno)
+function windingRecuperarTurno() {
+  return windingHydratePorFiltro_(SpreadsheetApp.getActiveSpreadsheet());
 }
 
 function windingCanAutoRecover_(displayValues) {
+  // Kept for test harness compatibility — logica legacy guardada (B12:T23 vacía)
   return (displayValues || []).every(function (row) {
     return row.every(function (value) { return String(value || '').trim() === ''; });
   });
@@ -190,12 +204,16 @@ function windingRecoverFromCurrentKeys_(spreadsheet, automatic) {
   const records = windingLoadRecoveryRecords_(ss, keys.fechaKey, keys.turno);
   const currentRows = form.getRange(WINDING_CONFIG.FORM.INPUT_LEFT).getDisplayValues();
   const grids = windingBuildRecoveryGrids_(records, currentRows);
+  // Escribir SOLO B12:D23 y F12:T23 — nunca E12:E23 (formulas) ni A12:A23
   form.getRange(WINDING_CONFIG.FORM.INPUT_LEFT).setValues(grids.left);
   form.getRange(WINDING_CONFIG.FORM.INPUT_RIGHT).setValues(grids.right);
   form.getRange(WINDING_CONFIG.FORM.SUPERVISOR).setValue(windingRecoverySupervisor_(records));
   SpreadsheetApp.flush();
-  ss.toast(records.length ? 'Turno recuperado.' : 'No hay registros para la fecha y turno seleccionados.',
-    'Winding', 5);
+  if (records.length) {
+    ss.toast('Turno cargado: ' + keys.fechaKey + ' ' + keys.turno + ' (' + records.length + ' registros)', 'Winding', 5);
+  } else {
+    ss.toast('Nuevo turno — sin datos guardados', 'Winding', 3);
+  }
   return { success: true, code: records.length ? 'ok' : 'not_found', automatic: Boolean(automatic), count: records.length };
 }
 
@@ -238,7 +256,7 @@ function windingRecoverySupervisor_(records) {
   return first ? String(first.supervisor).trim() : '';
 }
 
-// Re-sincronizar — parity with dyeing/coneras/yarn-inventory: ensure schema + trigger + toast
+// Re-sincronizar — parity con dyeing/coneras/yarn-inventory: ensure schema + trigger + toast
 function windingResincronizar() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   try { windingEnsureSchema(ss); } catch (e) {}
@@ -248,12 +266,11 @@ function windingResincronizar() {
   return { ok: true };
 }
 
-// Alias for menu binding stability (some sheets may resolve accented names differently)
 function windingMenuResincronizar() {
   return windingResincronizar();
 }
 
-// Legacy corrective delete kept for audit but no longer exposed in menu — parity with other projects favors Re-sincronizar
+// Legacy corrective delete kept for audit but no longer exposed in menu — parity favorece Re-sincronizar
 function windingEliminarRegistro() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const form = windingRequireFormSheet_(ss);
