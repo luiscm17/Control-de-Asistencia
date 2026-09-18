@@ -68,6 +68,13 @@ const WINDING_CONFIG = Object.freeze({
     SAVE_TRIGGER_HANDLER: 'windingOnEdit'
   }),
 
+  UI: Object.freeze({
+    DEBOUNCE_MS: 3000,
+    SAVE_LABEL: '☑ GUARDAR TURNO',
+    DB_HEADER_COLOR: '#e8f0fe',
+    ERRORS_HEADER_COLOR: '#fce8e6'
+  }),
+
   LOCK: Object.freeze({
     WAIT_MS: 5000,
     RETRIES: 1

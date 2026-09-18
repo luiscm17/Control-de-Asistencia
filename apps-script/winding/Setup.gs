@@ -3,22 +3,27 @@
  *
  * Run windingSetup manually on a COPY of ctrl_embolsado before deployment.
  * This module does not write form values, formulas, rows 10–11, or row 29.
+ * Also ensures M4 checkbox visibility + styling (parity with dyeing/yarn-inventory)
+ * so the checkbox is usable without a manual install step.
  */
 
 function windingSetup() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  const form = windingRequireFormSheet_(spreadsheet);
-
-  windingEnsureTableSheet_(spreadsheet, WINDING_CONFIG.SHEETS.DATA,
-    WINDING_CONFIG.DB_HEADERS, '#e8f0fe');
-  windingEnsureTableSheet_(spreadsheet, WINDING_CONFIG.SHEETS.ERRORS,
-    WINDING_CONFIG.ERRORS_HEADERS, '#fce8e6');
-  windingConfigureForm_(form);
-  windingProtectFormulasAndLabels_(form);
+  windingEnsureSchema(spreadsheet);
   windingReconcileOnEditTrigger_();
-
   SpreadsheetApp.flush();
   spreadsheet.toast('Configuración de Winding lista.', 'Winding', 5);
+}
+
+// Parity with dyeingEnsureSchema / yarnInventoryEnsureSchema — called from onOpen + Re-sincronizar
+function windingEnsureSchema(optSpreadsheet) {
+  var ss = optSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
+  windingEnsureTableSheet_(ss, WINDING_CONFIG.SHEETS.DATA, WINDING_CONFIG.DB_HEADERS, WINDING_CONFIG.UI.DB_HEADER_COLOR);
+  windingEnsureTableSheet_(ss, WINDING_CONFIG.SHEETS.ERRORS, WINDING_CONFIG.ERRORS_HEADERS, WINDING_CONFIG.UI.ERRORS_HEADER_COLOR);
+  var form = windingRequireFormSheet_(ss);
+  windingConfigureForm_(form);
+  windingProtectFormulasAndLabels_(form);
+  SpreadsheetApp.flush();
 }
 
 function windingRequireFormSheet_(spreadsheet) {
@@ -52,6 +57,7 @@ function windingEnsureTableSheet_(spreadsheet, sheetName, headers, color) {
 
   headerRange.setFontWeight('bold').setBackground(color);
   sheet.setFrozenRows(1);
+  try { sheet.autoResizeColumns(1, headers.length); } catch (e) {}
   windingProtectRange_(sheet, headerRange,
     WINDING_CONFIG.VALIDATION.HEADER_PROTECTION_DESCRIPTION + ': ' + sheetName);
   return sheet;
@@ -67,16 +73,26 @@ function windingConfigureForm_(form) {
     .setDataValidation(dateRule)
     .setNumberFormat(WINDING_CONFIG.VALIDATION.DATE_FORMAT);
 
-  const checkbox = form.getRange(WINDING_CONFIG.FORM.SAVE_CHECKBOX);
-  checkbox.setDataValidation(SpreadsheetApp.newDataValidation()
-    .requireCheckbox()
-    .setAllowInvalid(false)
-    .build());
-  if (checkbox.getValue() === '') checkbox.setValue(false);
-
-  const label = form.getRange(WINDING_CONFIG.FORM.SAVE_LABEL);
-  if (String(label.getDisplayValue() || '').trim() === '') {
-    label.setValue('Guardar turno');
+  // Checkbox M4 — parity with dyeing G4 / yarn-inventory G4/K3: validation, label styling, centering
+  try {
+    var checkbox = form.getRange(WINDING_CONFIG.FORM.SAVE_CHECKBOX);
+    var label = form.getRange(WINDING_CONFIG.FORM.SAVE_LABEL);
+    var rule = SpreadsheetApp.newDataValidation().requireCheckbox().setAllowInvalid(false).setHelpText('Marcar para guardar turno.').build();
+    checkbox.setDataValidation(rule);
+    try {
+      var cur = checkbox.getValue();
+      // Normalize any TRUE/VERDADERO/empty string drift to FALSE so next TRUE is detectable
+      if (cur !== false) checkbox.setValue(false);
+    } catch (e1) {
+      try { checkbox.setValue(false); } catch (ignore) {}
+    }
+    if (String(label.getDisplayValue() || '').trim() === '') label.setValue(WINDING_CONFIG.UI.SAVE_LABEL);
+    try {
+      label.setFontWeight('bold').setFontSize(10).setVerticalAlignment('middle').setFontColor('#174ea6');
+      checkbox.setHorizontalAlignment('center').setVerticalAlignment('middle').setBackground('#e8f0fe').setBorder(true, true, true, true, true, true, '#1a73e8', SpreadsheetApp.BorderStyle.SOLID);
+    } catch (styleIgnore) {}
+  } catch (e) {
+    Logger.log('windingConfigureForm_ checkbox: ' + e.message);
   }
 
   const numericRange = form.getRange(WINDING_CONFIG.FORM.INPUT_RIGHT);
