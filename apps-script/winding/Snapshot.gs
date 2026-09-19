@@ -19,6 +19,7 @@ function windingCaptureSnapshot_(spreadsheet) {
   const records = [];
   const errors = [];
 
+  const seenIds = {};
   values.forEach(function (row, rowIndex) {
     if (!windingIsSnapshotRowEligible_(row)) return;
 
@@ -37,6 +38,14 @@ function windingCaptureSnapshot_(spreadsheet) {
         windingColumnLabel_(WINDING_CONFIG.FORM.FIRST_OPERATOR_COLUMN + operatorIndex) +
         (WINDING_CONFIG.FORM.FIRST_ITEM_ROW + rowIndex) });
     });
+
+    // Deduplicar lote duplicado dentro del mismo formulario — último gana (evita crear duplicado en DB)
+    if (seenIds[identity.id] !== undefined) {
+      errors.push({ context: 'snapshot.duplicate_lote', detail: 'duplicate lote ' + String(row[2] || '').trim() + ' at row ' + (WINDING_CONFIG.FORM.FIRST_ITEM_ROW + rowIndex) + ' — se conserva último' });
+      // Reemplazar el anterior
+      for (var r = 0; r < records.length; r++) if (records[r].id === identity.id) { records.splice(r, 1); break; }
+    }
+    seenIds[identity.id] = true;
 
     records.push({
       id: identity.id,
@@ -64,13 +73,28 @@ function windingValidateSnapshotKeys_(date, turno) {
   return { ok: true, fechaKey: fechaKey, turno: normalizedTurno };
 }
 
-function windingNativeDateKey_(date) {
-  const isDate = date && Object.prototype.toString.call(date) === '[object Date]' && !isNaN(date.getTime());
-  if (!isDate) return '';
-  if (typeof Utilities !== 'undefined' && Utilities.formatDate) {
-    return Utilities.formatDate(date, WINDING_CONFIG.TIMEZONE, 'yyyy-MM-dd');
+function windingNativeDateKey_(value) {
+  // Business date is passthrough — native Sheets string/display, no America/La_Paz.
+  // La_Paz is only for audit (actualizado/Errors). Parity con dyeing/coneras/yarn-inventory.
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    var y = value.getFullYear();
+    var m = value.getMonth() + 1;
+    var d = value.getDate();
+    return y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
   }
-  return date.getFullYear() + '-' + windingPad2_(date.getMonth() + 1) + '-' + windingPad2_(date.getDate());
+  var raw = String(value || '').trim();
+  if (!raw) return '';
+  var iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) {
+    var yr = Number(iso[1]); var mo = Number(iso[2]); var da = Number(iso[3]);
+    if (mo < 1 || mo > 12 || da < 1 || da > 31) return '';
+    return yr + '-' + String(mo).padStart(2, '0') + '-' + String(da).padStart(2, '0');
+  }
+  var dm = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!dm) return '';
+  var dd = Number(dm[1]); var mm = Number(dm[2]); var yy = Number(dm[3]);
+  if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return '';
+  return yy + '-' + String(mm).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
 }
 
 function windingNormalizeRecordIdentity_(fechaKey, turno, lote) {

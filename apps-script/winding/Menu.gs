@@ -41,17 +41,30 @@ function windingGuardarTurno() {
   const snapshot = windingCaptureSnapshot_(ss);
   if (!snapshot.ok) {
     windingRecordWorkflowFailure_(ss, 'save.validation', snapshot.code);
-    ss.toast('No se guardó el turno: completá fecha y turno válidos.', 'Winding', 5);
+    // Obligatorios: H4 Fecha (Date valida dd/MM/yyyy) y J4 Turno (texto sin "|").
+    // Por fila: B12:D23 requiere B (color) + C (lote) + D (titulo) con contenido; si falta alguno la fila se omite.
+    ss.toast('No se guardó el turno: completá fecha y turno válidos.', 'Winding', 8);
     return { success: false, code: snapshot.code, inserted: 0, updated: 0 };
+  }
+  if (!snapshot.records || snapshot.records.length === 0) {
+    ss.toast('Nada para guardar: completá al menos una fila con Color (B), Lote (C) y Título (D).', 'Winding', 8);
+    return { success: false, code: 'empty_form', inserted: 0, updated: 0 };
   }
 
   const result = windingPersistSnapshot_(snapshot, ss);
   if (result.success) {
     ss.toast('Turno guardado: ' + result.inserted + ' nuevo(s), ' + result.updated + ' actualizado(s).',
-      'Winding', 5);
+      'Winding', 8);
   } else {
     windingRecordWorkflowFailure_(ss, 'save.persistence', result.code);
-    ss.toast('No se guardó el turno. Intentá nuevamente.', 'Winding', 5);
+    var detail = result.code ? ' (' + result.code + ')' : '';
+    if (result.code === 'lock_timeout') {
+      ss.toast('No se guardó el turno: bloqueo activo, reintentá en 3s.' + detail, 'Winding', 8);
+    } else if (result.code === 'duplicate_id') {
+      ss.toast('No se guardó el turno: ID duplicado en db_embolsado.' + detail + ' Revisá Errors.', 'Winding', 8);
+    } else {
+      ss.toast('No se guardó el turno. Intentá nuevamente.' + detail, 'Winding', 8);
+    }
   }
   return result;
 }
@@ -123,7 +136,7 @@ function windingOnEdit(event) {
     var ss = null;
     try { ss = (event && event.source) ? event.source : SpreadsheetApp.getActiveSpreadsheet(); } catch (ignore3) {}
     if (windingIsDebounced_()) {
-      try { (ss || SpreadsheetApp.getActiveSpreadsheet()).toast('⏳ Guardado reciente, esperá 3s', 'Winding', 4); } catch (ignore4) {}
+      try { (ss || SpreadsheetApp.getActiveSpreadsheet()).toast('⏳ Guardado reciente, esperá 3s', 'Winding', 7); } catch (ignore4) {}
       try { event.range.setValue(false); } catch (ignore5) {}
       try { SpreadsheetApp.flush(); } catch (ignore6) {}
       return;
@@ -166,19 +179,16 @@ function windingHydratePorFiltro_(spreadsheet) {
     form.getRange(WINDING_CONFIG.FORM.DATE).getValue(),
     form.getRange(WINDING_CONFIG.FORM.TURNO).getDisplayValue());
   if (!keys.ok) {
-    // Claves inválidas -> no tocar el form, solo avisar (parity yarn-inventory/coneras no borra en clave inválida)
-    ss.toast('No se puede cargar: completá fecha y turno válidos.', 'Winding', 5);
+    ss.toast('No se puede cargar: completá fecha y turno válidos.', 'Winding', 8);
     return { success: false, code: keys.code };
   }
   return windingRecoverFromCurrentKeys_(ss, false);
 }
 
-// Legacy alias — antes era guardado con check de zona vacía; ahora delega a hydrate incondicional
 function windingIntentarRecuperacionAutomatica_(spreadsheet) {
   return windingHydratePorFiltro_(spreadsheet);
 }
 
-// Legacy menu item — mantenido por compatibilidad pero ya no expuesto (usar hydrate automático por Fecha+Turno)
 function windingRecuperarTurno() {
   return windingHydratePorFiltro_(SpreadsheetApp.getActiveSpreadsheet());
 }
@@ -197,22 +207,21 @@ function windingRecoverFromCurrentKeys_(spreadsheet, automatic) {
     form.getRange(WINDING_CONFIG.FORM.DATE).getValue(),
     form.getRange(WINDING_CONFIG.FORM.TURNO).getDisplayValue());
   if (!keys.ok) {
-    ss.toast('No se puede recuperar: completá fecha y turno válidos.', 'Winding', 5);
+    ss.toast('No se puede recuperar: completá fecha y turno válidos.', 'Winding', 8);
     return { success: false, code: keys.code };
   }
 
   const records = windingLoadRecoveryRecords_(ss, keys.fechaKey, keys.turno);
   const currentRows = form.getRange(WINDING_CONFIG.FORM.INPUT_LEFT).getDisplayValues();
   const grids = windingBuildRecoveryGrids_(records, currentRows);
-  // Escribir SOLO B12:D23 y F12:T23 — nunca E12:E23 (formulas) ni A12:A23
   form.getRange(WINDING_CONFIG.FORM.INPUT_LEFT).setValues(grids.left);
   form.getRange(WINDING_CONFIG.FORM.INPUT_RIGHT).setValues(grids.right);
   form.getRange(WINDING_CONFIG.FORM.SUPERVISOR).setValue(windingRecoverySupervisor_(records));
   SpreadsheetApp.flush();
   if (records.length) {
-    ss.toast('Turno cargado: ' + keys.fechaKey + ' ' + keys.turno + ' (' + records.length + ' registros)', 'Winding', 5);
+    ss.toast('Turno cargado: ' + keys.fechaKey + ' ' + keys.turno + ' (' + records.length + ' registros)', 'Winding', 8);
   } else {
-    ss.toast('Nuevo turno — sin datos guardados', 'Winding', 3);
+    ss.toast('Nuevo turno — sin datos guardados', 'Winding', 6);
   }
   return { success: true, code: records.length ? 'ok' : 'not_found', automatic: Boolean(automatic), count: records.length };
 }
@@ -262,7 +271,7 @@ function windingResincronizar() {
   try { windingEnsureSchema(ss); } catch (e) {}
   try { windingReconcileOnEditTrigger_(); } catch (e2) {}
   try { SpreadsheetApp.flush(); } catch (e3) {}
-  try { ss.toast('✅ Esquema verificado — ctrl_embolsado/db_embolsado/Errors listos', 'Winding', 5); } catch (ignore) {}
+  try { ss.toast('✅ Esquema verificado — ctrl_embolsado/db_embolsado/Errors listos', 'Winding', 8); } catch (ignore) {}
   return { ok: true };
 }
 
@@ -278,7 +287,7 @@ function windingEliminarRegistro() {
     form.getRange(WINDING_CONFIG.FORM.DATE).getValue(),
     form.getRange(WINDING_CONFIG.FORM.TURNO).getDisplayValue());
   if (!keys.ok) {
-    ss.toast('No se puede eliminar: completá fecha y turno válidos.', 'Winding', 5);
+    ss.toast('No se puede eliminar: completá fecha y turno válidos.', 'Winding', 8);
     return { success: false, code: keys.code };
   }
 
@@ -287,7 +296,7 @@ function windingEliminarRegistro() {
   if (lotePrompt.getSelectedButton() !== ui.Button.OK) return { success: false, code: 'cancelled' };
   const identity = windingNormalizeRecordIdentity_(keys.fechaKey, keys.turno, lotePrompt.getResponseText());
   if (!identity.ok) {
-    ss.toast('No se puede eliminar: el lote no es válido.', 'Winding', 5);
+    ss.toast('No se puede eliminar: el lote no es válido.', 'Winding', 8);
     return { success: false, code: identity.code };
   }
 
@@ -295,13 +304,13 @@ function windingEliminarRegistro() {
     'Escribí exactamente este ID para eliminarlo: ' + identity.id, ui.ButtonSet.OK_CANCEL);
   if (confirmation.getSelectedButton() !== ui.Button.OK ||
       !windingIsConfirmedDelete_(identity.id, confirmation.getResponseText())) {
-    ss.toast('Eliminación cancelada: la confirmación no coincide.', 'Winding', 5);
+    ss.toast('Eliminación cancelada: la confirmación no coincide.', 'Winding', 8);
     return { success: false, code: 'confirmation_mismatch' };
   }
 
   const result = windingDeleteRecord_(identity.id, ss);
   ss.toast(result.success ? 'Registro eliminado.' : 'No se eliminó el registro: ' + result.code + '.',
-    'Winding', 5);
+    'Winding', 8);
   return result;
 }
 

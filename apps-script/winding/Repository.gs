@@ -15,8 +15,12 @@ function windingPersistSnapshot_(snapshot, spreadsheet) {
     const dataSheet = ss.getSheetByName(WINDING_CONFIG.SHEETS.DATA);
     if (!dataSheet) throw new Error('Data sheet is unavailable. Run windingSetup first.');
     const indexed = windingLoadRecordIndex_(dataSheet);
+    // Si había duplicado en DB, se loguea pero no se bloquea — se repara al guardar (último gana)
+    if (indexed.hasDuplicate) {
+      windingAppendErrorUnlocked_(ss, 'repository.index', 'Duplicate id en DB auto-reparado: ' + indexed.duplicateId, windingEditorEmail_());
+    }
     if (!indexed.ok) {
-      windingAppendErrorUnlocked_(ss, 'repository.index', 'Duplicate id found in db_embolsado.', windingEditorEmail_());
+      windingAppendErrorUnlocked_(ss, 'repository.index', 'Duplicate id en db_embolsado: ' + (indexed.duplicateId || ''), windingEditorEmail_());
       return { success: false, code: indexed.code, inserted: 0, updated: 0 };
     }
 
@@ -73,13 +77,19 @@ function windingLoadRecordIndex_(sheet) {
 
 function windingBuildRecordIndex_(rows) {
   const index = {};
+  let duplicateId = '';
   for (let indexOffset = 0; indexOffset < rows.length; indexOffset += 1) {
     const id = String(rows[indexOffset][WINDING_CONFIG.IDX.ID] || '').trim();
     if (!id) continue;
     if (index[id]) {
-      return { ok: false, code: 'duplicate_id' };
+      // No bloquear: guardar el último y recordar el duplicado para log (auto-repara en próximo guardado)
+      duplicateId = id;
     }
     index[id] = { rowNumber: indexOffset + 2, values: rows[indexOffset] };
+  }
+  if (duplicateId) {
+    // Se detectó duplicado en DB — se logueará en el caller, pero no se bloquea el guardado
+    return { ok: true, index: index, duplicateId: duplicateId, hasDuplicate: true };
   }
   return { ok: true, index: index };
 }

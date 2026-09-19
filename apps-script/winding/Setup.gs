@@ -12,7 +12,7 @@ function windingSetup() {
   windingEnsureSchema(spreadsheet);
   windingReconcileOnEditTrigger_();
   SpreadsheetApp.flush();
-  spreadsheet.toast('Configuración de Winding lista.', 'Winding', 5);
+  spreadsheet.toast('Configuración de Winding lista.', 'Winding', 8);
 }
 
 // Parity with dyeingEnsureSchema / yarnInventoryEnsureSchema — called from onOpen + Re-sincronizar
