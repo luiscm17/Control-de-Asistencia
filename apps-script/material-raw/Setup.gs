@@ -1,7 +1,7 @@
 /**
  * Setup.gs — COPY-only installer for the isolated Material Raw (Materia Prima) project.
  *
- * Ensures db_materialrow A:J (10 cols frozen) + Errors A:F + F4 checkbox (FALSE/TRUE)
+ * Ensures db_materialrow A:K (11 cols frozen) + Errors A:F + F4 checkbox (FALSE/TRUE)
  * plus installable trigger materialRawOnEdit. Idempotent — safe to re-run.
  * No formulas in db_materialrow; only values. Preserves H=SI(F="";0;...) in form.
  *
@@ -55,7 +55,7 @@ function materialRawEnsureTableSheet_(ss, sheetName, headers, headerColor) {
   try { sheet.autoResizeColumns(1, width); } catch (e) {}
   materialRawEnsureHeaderProtection_(sheet, headerRange, MATERIAL_RAW_CONFIG.UI.HEADER_PROTECTION + ': ' + sheetName);
 
-  // Number formats for DB: A fecha dd/MM/yyyy, I total_kilos 0.00, J timestamp yyyy-MM-dd HH:mm:ss; no formulas
+   // Number formats for DB: A fecha dd/MM/yyyy, I total_kilos 0.00, J actualizado yyyy-MM-dd HH:mm:ss, K editado_por plain; no formulas
   try {
     if (sheetName === MATERIAL_RAW_CONFIG.SHEETS.DATA) {
       var rows = Math.max(1, sheet.getMaxRows() - 1);
@@ -63,8 +63,10 @@ function materialRawEnsureTableSheet_(ss, sheetName, headers, headerColor) {
       sheet.getRange(2, 1, rows, 1).setNumberFormat(MATERIAL_RAW_CONFIG.VALIDATION.DATE_FORMAT);
       // I total_kilos col 9
       sheet.getRange(2, 9, rows, 1).setNumberFormat('0.00');
-      // J timestamp col 10 La_Paz
+      // J actualizado col 10 La_Paz
       sheet.getRange(2, 10, rows, 1).setNumberFormat('yyyy-MM-dd HH:mm:ss');
+      // K editado_por col 11 plain text
+      sheet.getRange(2, 11, rows, 1).setNumberFormat('@');
       // Ensure no formulas in data rows (clear any stray formulas on setup, keep header only)
       // Do not clear values — only ensure header row has no formulas beyond header text
     }
@@ -153,103 +155,6 @@ function materialRawConfigureForm_(form) {
   } catch (e2) {
     Logger.log('materialRawConfigureForm_ F4: ' + e2.message);
   }
-}
-
-// ---------------------------------------------------------------------------
-// Registro Diario B10:B40 fix — replaces INDICE with SUMAR.SI (decoupled history)
-// ---------------------------------------------------------------------------
-
-/**
- * Fix Registro Diario!B10:B40 aggregation formula.
- * Replaces legacy `INDICE('Control Camiones'!H7:H206;1)` with decoupled
- * `=SI.ERROR(SUMAR.SI(db_materialrow!$A$2:$A;fecha;db_materialrow!$I$2:$I);0)`.
- *
- * Detection per row (A10:A40):
- *  - If A10 holds a native Date (e.g. 19/09/2026 as Date object), uses
- *    `=SI.ERROR(SUMAR.SI(db_materialrow!$A$2:$A;$A10;db_materialrow!$I$2:$I);0)`
- *  - Otherwise (A10 = 1,2,3 numeric day), uses
- *    `=SI.ERROR(SUMAR.SI(db_materialrow!$A$2:$A;FECHA(2026;9;$A10);db_materialrow!$I$2:$I);0)`
- *
- * Keeps H + A6:H6 untouched (only B10:B40 formulas). Idempotent — safe to re-run.
- * Manual alternative if script unavailable: paste FECHA variant in B10 and copy down to B40.
- *
- * Run once on COPY after materialRawSetup: Extensions > Apps Script > Run materialRawFixRegistroDiarioFormulas
- *
- * @param {GoogleAppsScript.Spreadsheet.Spreadsheet=} optSpreadsheet
- * @return {{success:boolean, code:string, updated:number}}
- */
-function materialRawFixRegistroDiarioFormulas(optSpreadsheet) {
-  var ss = optSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName('Registro Diario');
-  if (!sheet) {
-    var msg = 'Hoja "Registro Diario" no encontrada — verifique nombre exacto.';
-    try { ss.toast(msg, 'Materia Prima', 8); } catch (ignore) {}
-    try { materialRawLogError_('fix-registro', 'missing_sheet', msg, 'Registro Diario!B10:B40', ss); } catch (ignore2) {}
-    return { success: false, code: 'missing_sheet', updated: 0 };
-  }
-
-  // Idempotent: read A10:A40 to decide per-row formula
-  var aValues;
-  try {
-    aValues = sheet.getRange('A10:A40').getValues();
-  } catch (e) {
-    var em = e && e.message ? e.message : String(e);
-    try { materialRawLogError_('fix-registro', 'read_failed', em, 'Registro Diario!A10:A40', ss); } catch (ignore) {}
-    try { ss.toast(em, 'Materia Prima', 8); } catch (ignore2) {}
-    return { success: false, code: 'read_failed', updated: 0 };
-  }
-
-  var formulas = [];
-  for (var i = 0; i < aValues.length; i++) {
-    var rowNum = 10 + i;
-    var av = aValues[i][0];
-    var isNativeDate = av instanceof Date && !isNaN(av.getTime());
-    // Also treat display-heavy native: if A10:A40 has number 1-31, it's numeric day
-    var formula;
-    if (isNativeDate) {
-      formula = '=SI.ERROR(SUMAR.SI(db_materialrow!$A$2:$A;$A' + rowNum + ';db_materialrow!$I$2:$I);0)';
-    } else {
-      // Numeric day (1,2,3) or empty — use FECHA(2026;9;$A) to construct date 2026-09-dd
-      // SI.ERROR wraps zero when no data — keeps unit hist preserved
-      formula = '=SI.ERROR(SUMAR.SI(db_materialrow!$A$2:$A;FECHA(2026;9;$A' + rowNum + ');db_materialrow!$I$2:$I);0)';
-    }
-    formulas.push([formula]);
-  }
-
-  try {
-    // B10:B40 only — strictly 31 rows, column B. Never touch H or A6:H6.
-    sheet.getRange('B10:B40').setFormulas(formulas);
-    SpreadsheetApp.flush();
-  } catch (e2) {
-    var em2 = e2 && e2.message ? e2.message : String(e2);
-    try { materialRawLogError_('fix-registro', 'write_failed', em2, 'Registro Diario!B10:B40', ss); } catch (ignore) {}
-    try { ss.toast(em2, 'Materia Prima', 8); } catch (ignore2) {}
-    return { success: false, code: 'write_failed', updated: 0 };
-  }
-
-  try { ss.toast('Registro Diario B10:B40 actualizado a SUMAR.SI — verificado', 'Materia Prima', 8); } catch (ignore) {}
-  return { success: true, code: 'ok', updated: 31 };
-}
-
-/**
- * Variant that forces hybrid ESNUMERO formula for both cases in one expression:
- * =SI.ERROR(SUMAR.SI(db_materialrow!$A$2:$A;SI(ESNUMERO($A10);FECHA(2026;9;$A10);$A10);db_materialrow!$I$2:$I);0)
- * Useful when A column mixes numeric days and native dates.
- * Not used by default — kept as manual alternative (idempotent).
- */
-function materialRawFixRegistroDiarioFormulasHybrid_(optSpreadsheet) {
-  var ss = optSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName('Registro Diario');
-  if (!sheet) return { success: false, code: 'missing_sheet', updated: 0 };
-  var formulas = [];
-  for (var i = 0; i < 31; i++) {
-    var rn = 10 + i;
-    formulas.push(['=SI.ERROR(SUMAR.SI(db_materialrow!$A$2:$A;SI(ESNUMERO($A' + rn + ');FECHA(2026;9;$A' + rn + ');$A' + rn + ');db_materialrow!$I$2:$I);0)']);
-  }
-  sheet.getRange('B10:B40').setFormulas(formulas);
-  SpreadsheetApp.flush();
-  try { ss.toast('Registro Diario B10:B40 híbrido (ESNUMERO) aplicado', 'Materia Prima', 8); } catch (ignore) {}
-  return { success: true, code: 'ok', updated: 31 };
 }
 
 function materialRawReconcileTrigger_() {
