@@ -1,8 +1,8 @@
 /**
  * Repository.gs — Locked, indexed persistence helpers for Material Raw (Materia Prima).
  *
- * DB: db_materialrow A:J (fecha native Date passthrough, no formatDate for business date)
- *     PK = fecha (delete+append idempotent). J timestamp is La_Paz.
+ * DB: db_materialrow A:K (fecha native Date passthrough, no formatDate for business date)
+ *     PK = fecha (delete+append idempotent). J/K auditoría (actualizado/editado_por) en La_Paz.
  * All writes use LockService 5s + 1 retry; fail-closed on header drift (Errors + toast 8s).
  * This file is PR1 skeleton — no Core save/rehydrate wiring yet; helpers are
  * consumed by Core.gs in PR2.
@@ -73,7 +73,7 @@ function materialRawAppendErrorUnlocked_(ss, scope, detail, editor) {
 
 function materialRawFailClosed_(code, reason, rangeA1, optSpreadsheet) {
   var ss = optSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
-  try { materialRawLogError_(MATERIAL_RAW_CONFIG.SHEETS.DATA, code, reason, rangeA1 || MATERIAL_RAW_CONFIG.SHEETS.DATA + '!A1:J1', ss); } catch (ignore) {}
+  try { materialRawLogError_(MATERIAL_RAW_CONFIG.SHEETS.DATA, code, reason, rangeA1 || MATERIAL_RAW_CONFIG.SHEETS.DATA + '!A1:K1', ss); } catch (ignore) {}
   try { ss.toast(reason || code, 'Materia Prima', 8); } catch (ignore2) {}
   return { success: false, code: code };
 }
@@ -84,12 +84,12 @@ function materialRawValidateDataHeader_(optSpreadsheet) {
   var ss = optSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(MATERIAL_RAW_CONFIG.SHEETS.DATA);
   if (!sheet) {
-    return materialRawFailClosed_(MATERIAL_RAW_CONFIG.ERRORS.MISSING_SHEET, 'Falta hoja ' + MATERIAL_RAW_CONFIG.SHEETS.DATA + '. Ejecut' + String.fromCharCode(225) + ' materialRawSetup.', MATERIAL_RAW_CONFIG.SHEETS.DATA + '!A1:J1', ss);
+    return materialRawFailClosed_(MATERIAL_RAW_CONFIG.ERRORS.MISSING_SHEET, 'Falta hoja ' + MATERIAL_RAW_CONFIG.SHEETS.DATA + '. Ejecut' + String.fromCharCode(225) + ' materialRawSetup.', MATERIAL_RAW_CONFIG.SHEETS.DATA + '!A1:K1', ss);
   }
   var width = MATERIAL_RAW_CONFIG.DB_HEADERS.length;
   var current = sheet.getRange(1, 1, 1, width).getDisplayValues()[0].map(function (v) { return String(v || '').trim(); });
   if (!materialRawHeadersMatch_(current, MATERIAL_RAW_CONFIG.DB_HEADERS)) {
-    return materialRawFailClosed_(MATERIAL_RAW_CONFIG.ERRORS.HEADER_MISMATCH, 'Encabezado db_materialrow inv' + String.fromCharCode(225) + 'lido — no se escribi' + String.fromCharCode(243) + '.', MATERIAL_RAW_CONFIG.SHEETS.DATA + '!A1:J1', ss);
+    return materialRawFailClosed_(MATERIAL_RAW_CONFIG.ERRORS.HEADER_MISMATCH, 'Encabezado db_materialrow inv' + String.fromCharCode(225) + 'lido — no se escribi' + String.fromCharCode(243) + '.', MATERIAL_RAW_CONFIG.SHEETS.DATA + '!A1:K1', ss);
   }
   return { success: true, code: 'ok', sheet: sheet };
 }

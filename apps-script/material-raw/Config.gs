@@ -5,9 +5,9 @@
  * and UI/lock constants. Isolated V8 project — do not share globals with
  * attendance-control / yarn-production / yarn-settings / winding / dyeing.
  *
- * Data flow: Control Camiones D4 (Date) + B7:H37 (31 rows) → db_materialrow A:J (PK fecha, delete+append)
+ * Data flow: Control Camiones D4 (Date) + B7:H37 (31 rows) → db_materialrow A:K (PK fecha, delete+append)
  *           → Registro Diario B10:B40 =SI.ERROR(SUMAR.SI(db_materialrow!$A$2:$A;FECHA(2026;9;$A10);$I$2:$I);0)
- * Fecha native pass-through (getValue) — America/La_Paz only for J timestamp.
+ * Fecha native pass-through (getValue) — America/La_Paz only for J/K auditoría.
  *
  * INSTALL: Extensions > Apps Script > paste this project > Save > Reload sheet
  * VERIFY:  Use a COPY of 13vr2cJSG3Bukpd1Gk71--gMIme0Fe0n2HP9-mrhVrw0 — never prod.
@@ -50,7 +50,8 @@ var MATERIAL_RAW_CONFIG = Object.freeze({
     'tipo_fardo',
     'cantidad',
     'total_kilos',
-    'timestamp'
+    'actualizado',
+    'editado_por'
   ]),
 
   ERRORS_HEADERS: Object.freeze([
@@ -72,12 +73,13 @@ var MATERIAL_RAW_CONFIG = Object.freeze({
     TIPO_FARDO: 6,
     CANTIDAD: 7,
     TOTAL_KILOS: 8,
-    TIMESTAMP: 9
+    ACTUALIZADO: 9,
+    EDITADO_POR: 10
   }),
 
   LIMITS: Object.freeze({
     ROWS: 31,
-    COLS: 10,
+    COLS: 11,
     ERROR_COLUMNS: 6
   }),
 

@@ -11,7 +11,7 @@
  * Rehydrate: materialRawHydrate_(ss, fecha) under lock, filters db_materialrow A==fecha,
  *   hit -> setValues B7:G37 (31x6, H preserved), miss -> clearContent B7:G37 (H 0), toast 8s.
  *
- * Timezone: America/La_Paz only for J timestamp via materialRawAuditTimestamp_(); never for fecha.
+ * Timezone: America/La_Paz only for J/K auditoría (actualizado/editado_por) via materialRawAuditTimestamp_(); never for fecha.
  * Failure: Errors sheet + toast 8s, header drift fail-closed, lock timeout no write.
  *
  * INSTALL: Extensions > Apps Script > paste this project > Save > Reload sheet > materialRawSetup once
@@ -90,11 +90,14 @@ function materialRawGuardarDia() {
 
   // EC-01: D4 empty / not a valid native Date -> abort, toast 8s, reset F4, no write
   if (!materialRawIsValidFecha_(fecha)) {
-    try { materialRawLogError_('guardar', MATERIAL_RAW_CONFIG.ERRORS.EMPTY_FECHA, 'D4 vac\u00EDa o inv\u00E1lida — guard bloqueado', MATERIAL_RAW_CONFIG.RANGES.DATE, ss); } catch (ignore) {}
-    try { ss.toast('Seleccione una fecha v\u00E1lida en D4.', 'Materia Prima', 8); } catch (ignore2) {}
+    try { materialRawLogError_('guardar', MATERIAL_RAW_CONFIG.ERRORS.EMPTY_FECHA, 'D4 vac' + String.fromCharCode(237) + 'a o inv' + String.fromCharCode(225) + 'lida — guard bloqueado', MATERIAL_RAW_CONFIG.RANGES.DATE, ss); } catch (ignore) {}
+    try { ss.toast('Seleccione una fecha v' + String.fromCharCode(225) + 'lida en D4.', 'Materia Prima', 8); } catch (ignore2) {}
     try { materialRawResetCheckboxF4_(ss); } catch (ignore3) {}
     return { success: false, code: MATERIAL_RAW_CONFIG.ERRORS.EMPTY_FECHA, inserted: 0, deleted: 0 };
   }
+
+  // Auto-ensure db_materialrow exists — no manual Setup required
+  try { materialRawEnsureSchema(ss); } catch (e) { Logger.log('auto ensure: ' + e.message); }
 
   // Header fail-closed before any write (no lock yet — fast fail)
   var headerCheck = materialRawValidateDataHeader_(ss);
@@ -136,9 +139,10 @@ function materialRawGuardarDia() {
     // Normalize totalKilos numeric sum: handle number or string numeric
     var kilosNum = Number(totalKilos);
     if (isFinite(kilosNum)) sumKilos += kilosNum;
-    var timestamp = materialRawAuditTimestamp_();
+    var actualizado = materialRawAuditTimestamp_();
+    var editadoPor = materialRawEditorEmail_();
     // fecha is native Date passthrough — same object for all rows (no formatDate)
-    newRows.push([fecha, dia, nCamion, tipoMat, nPartida, nBulto, tipoFardo, cantidad, totalKilos, timestamp]);
+    newRows.push([fecha, dia, nCamion, tipoMat, nPartida, nBulto, tipoFardo, cantidad, totalKilos, actualizado, editadoPor]);
   }
 
   // Even if newRows empty (all F=""), still perform delete+append: this clears the day (idempotent PK fecha)
@@ -216,9 +220,12 @@ function materialRawHydrate_(optSpreadsheet, nativeFecha) {
   }
   if (!materialRawIsValidFecha_(fecha)) {
     // No valid fecha -> nothing to hydrate; toast 8s per spec (treated as empty)
-    try { ss.toast('Seleccione una fecha v\u00E1lida en D4.', 'Materia Prima', 8); } catch (ignore) {}
+    try { ss.toast('Seleccione una fecha v' + String.fromCharCode(225) + 'lida en D4.', 'Materia Prima', 8); } catch (ignore) {}
     return { success: false, code: MATERIAL_RAW_CONFIG.ERRORS.EMPTY_FECHA, count: 0 };
   }
+
+  // Auto-ensure db_materialrow exists — Resincronizar crea la db si no existe
+  try { materialRawEnsureSchema(ss); } catch (e) { Logger.log('auto ensure: ' + e.message); }
 
   // Validate header before lock (fast fail)
   var headerCheck = materialRawValidateDataHeader_(ss);
