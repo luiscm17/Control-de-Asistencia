@@ -15,6 +15,9 @@ Daily production by shift (DAY/AFTERNOON/NIGHT) across 9 textile processes. A re
 ### ⚙️ Spinning Settings — Assignments & Weighings
 Plans output per spinning machine and logs actual weighings. Up to 10 assignments and 80 weighings per day go to `db_asignaciones` / `db_descargas` with net weight calculation and per-operator traceability.
 
+### 🏗️ Materia Prima — Control Camiones
+Reusable daily form `Control Camiones!B7:H37` (31 rows, `F4` save, `D4` native date) decoupled via `db_materialrow` (A:J PK `fecha`) and aggregated in `Registro Diario!B10:B40` via `SI.ERROR(SUMAR.SI(...))`. See `docs/material-raw/PRD.md`.
+
 ---
 
 **Why this stack?** The plant already runs on Sheets. This keeps the UX they know and adds a real DB behind it — validation, history, and permissions without external servers.
