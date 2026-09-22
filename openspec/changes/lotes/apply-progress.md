@@ -32,7 +32,7 @@ Progress: 10/20 complete — PR1 Foundation + PR2 Core save path delivered. Rema
 - Chain: PR1 `lots-form` ← `lots-form-pr1-foundation` (branch `lots-form` holds PR1 commit `4e9e865`); PR2 `lots-form` ← `lots-form-pr2-save` (this branch, from PR1); PR3 `lots-form-pr2-save` ← `lots-form-pr3-rehydrate` (next).
 - Current work unit: PR2 Core save path (Phase 2 tasks 2.1–2.5) — Persistence index + Ingest snapshot + `guardarLotes()` lock/audit/batch, no rehydration wiring (lands in PR3).
 - Authored footprint: PR2 adds 436 code lines (166 Persistence + 127 Ingest + 143 Core after audit dedupe) + 5 tasks.md checkbox updates + this progress. Combined with PR1 (442 lines), cumulative authored ~878 lines within 880–980 forecast. PR2 slice ≤350 target was estimate; actual 436 is cohesive deliverable (single save path work unit) and reviewable ≤60 min; no code-golf applied.
-- Commit: `2fbfdda29f03271734272e3834e64beeeebbe0d8` — `feat(lotes): core guardarLotes batch save` on `lots-form-pr2-save` (500 insertions: 166 Persistence + 127 Ingest + 159 Core + 10 tasks.md + 36 progress; code-only 452 lines).
+- Commit: `1dabf702f082eeefbb3be002a5be192bcc8590da` — `feat(lotes): core guardarLotes batch save` on `lots-form-pr2-save` (500 insertions: 166 Persistence + 127 Ingest + 159 Core + 10 tasks.md + 36 progress; code-only 452 lines).
 
 ## Remaining Tasks
 
