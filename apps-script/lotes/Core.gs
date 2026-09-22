@@ -117,39 +117,112 @@ function lotesResetCheckbox_(ss) {
 // Audit: single source in Errors.gs — Core reuses lotesAuditTimestamp_ / lotesEditorEmail_ directly.
 // (wrappers omitted to keep single source; see Errors.gs)
 
-// Rehydration stub — full impl lands in PR3 (Phase 3.1). Keep toast contract so early Menu dispatch does not fail.
+/**
+ * rehidratarPorFecha_ — full single-scan rehydrate (PR3 Phase 3.1).
+ *
+ * - D4 passthrough via getValue() — empty/invalid Date clears C8:G37, re-asserts B8:B37=1..30, flush, toast, return 0
+ * - Valid date: derive fechaDisplay (dd/MM/yyyy) + fechaKey (yyyy-MM-dd), single getValues() scan of db_lots A:K (no lock, read-only),
+ *   build posicion→row map where row[ID]==fechaKey-posicion canonical OR row[FECHA]==fechaDisplay fallback (legacy display),
+ *   clear C8:G37, build 30x5 matrix C:G ordered by posicion 1..30 (empty strings for missing), setValues on C8:G37,
+ *   re-assert B8:B37=1..30, flush, toast "↻ Sincronizado: dd/MM/yyyy — M lotes" or "— sin registros para dd/MM/yyyy, listo para cargar".
+ * - Writes only C:G (payload) + B No re-assert — B never persisted per spec "No column persisted".
+ */
 function rehidratarPorFecha_() {
-  // Minimal safe impl for PR2: delegate when PR3 has not yet landed — do not throw on missing DB
-  try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var form = lotesGetFormSheet_(ss);
-    if (!form) return 0;
-    var raw = null;
-    try { raw = lotesGetRange_(form, LOTES_CONFIG.RANGES.D4).getValue(); } catch (ignore) { raw = null; }
-    var key = lotesDateKey_(raw);
-    var display = lotesFechaDisplay_(raw);
-    if (!key || !display) {
-      // Empty D4 at rehydrate time → clear C8:G37, re-assert B8:B37=1..30, no db read error
-      try {
-        var payloadClear = lotesGetRange_(form, LOTES_CONFIG.RANGES.PAYLOAD);
-        payloadClear.clearContent();
-        var noRange = form.getRange(8, 2, LOTES_CONFIG.LIMITS.ROWS, 1);
-        var nums = [];
-        for (var i = 0; i < LOTES_CONFIG.LIMITS.ROWS; i++) nums.push([i + 1]);
-        noRange.setValues(nums);
-        SpreadsheetApp.flush();
-      } catch (ignore2) {}
-      return 0;
-    }
-    // Valid date but full single-scan rehydrate lands in PR3 — for PR2, just clear+re-assert to keep contract.
-    // This still satisfies "empty D4 guard + no exception" for PR2; PR3 will replace with full scan.
-    return 0;
-  } catch (e) {
-    try { Logger.log('rehidratarPorFecha_ PR2 stub: ' + (e && e.message ? e.message : String(e))); } catch (ignore) {}
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var form = lotesGetFormSheet_(ss);
+  if (!form) return 0;
+  var raw = null;
+  try { raw = lotesGetRange_(form, LOTES_CONFIG.RANGES.D4).getValue(); } catch (ignore) { raw = null; }
+  var fechaKey = lotesDateKey_(raw);
+  var fechaDisplay = lotesFechaDisplay_(raw);
+  // Empty or invalid D4 — clear payload, re-assert No 1..30, no DB read error
+  if (!fechaKey || !fechaDisplay) {
+    try {
+      lotesGetRange_(form, LOTES_CONFIG.RANGES.PAYLOAD).clearContent();
+      var noRange = form.getRange(8, 2, LOTES_CONFIG.LIMITS.ROWS, 1);
+      var nums = [];
+      for (var i = 0; i < LOTES_CONFIG.LIMITS.ROWS; i++) nums.push([i + 1]);
+      noRange.setValues(nums);
+      SpreadsheetApp.flush();
+      try { ss.toast('Seleccione una fecha en D4 para rehidratar.', 'Lotes', 4); } catch (ignoreToast) {}
+    } catch (ignore2) {}
     return 0;
   }
+  // Valid date — single batch scan of db_lots A:K (no lock, read-only)
+  var dbSheet = lotesGetDbSheet_(ss);
+  var byPos = {};
+  if (dbSheet && dbSheet.getLastRow() >= 2) {
+    try {
+      var lastRow = dbSheet.getLastRow();
+      var width = LOTES_CONFIG.LIMITS.COLS;
+      var values = dbSheet.getRange(2, 1, lastRow - 1, width).getValues();
+      for (var r = 0; r < values.length; r++) {
+        var row = values[r];
+        var id = String(row[LOTES_CONFIG.IDX.ID] || '').trim();
+        var fechaCol = String(row[LOTES_CONFIG.IDX.FECHA] || '').trim();
+        var pos = 0;
+        // Canonical PK match: id == fechaKey-posicion
+        if (id.indexOf(fechaKey + '-') === 0) {
+          var suffix = id.substring((fechaKey + '-').length);
+          pos = parseInt(suffix, 10);
+          if (pos >= 1 && pos <= LOTES_CONFIG.LIMITS.ROWS && !byPos[pos]) {
+            byPos[pos] = row;
+            continue;
+          }
+        }
+        // Fallback: legacy display comparison on fecha column (dd/MM/yyyy)
+        if (fechaCol === fechaDisplay) {
+          var dash = id.lastIndexOf('-');
+          if (dash > -1) {
+            var legacyPos = parseInt(id.substring(dash + 1), 10);
+            if (legacyPos >= 1 && legacyPos <= LOTES_CONFIG.LIMITS.ROWS && !byPos[legacyPos]) {
+              byPos[legacyPos] = row;
+            }
+          }
+        }
+      }
+    } catch (eScan) {
+      try { Logger.log('rehidratarPorFecha_ scan: ' + (eScan && eScan.message ? eScan.message : String(eScan))); } catch (ignore) {}
+    }
+  }
+  // Clear C8:G37 then build 30x5 matrix C:G by posicion (empty strings for missing)
+  try { lotesGetRange_(form, LOTES_CONFIG.RANGES.PAYLOAD).clearContent(); } catch (ignoreClear) {}
+  var matrix = [];
+  var matched = 0;
+  for (var p = 1; p <= LOTES_CONFIG.LIMITS.ROWS; p++) {
+    var entry = byPos[p];
+    if (entry) {
+      matched++;
+      matrix.push([
+        String(entry[LOTES_CONFIG.IDX.TITULO] || ''),
+        String(entry[LOTES_CONFIG.IDX.TIPO_MATERIAL] || ''),
+        String(entry[LOTES_CONFIG.IDX.CODIGO_LOTE] || ''),
+        String(entry[LOTES_CONFIG.IDX.COLOR] || ''),
+        String(entry[LOTES_CONFIG.IDX.OBSERVACION] || '')
+      ]);
+    } else {
+      matrix.push(['', '', '', '', '']);
+    }
+  }
+  try {
+    lotesGetRange_(form, LOTES_CONFIG.RANGES.PAYLOAD).setValues(matrix);
+    // Re-assert B8:B37 1..30 — visual No invariant (B never persisted, never overwritten by DB)
+    var noVals = [];
+    for (var k = 0; k < LOTES_CONFIG.LIMITS.ROWS; k++) noVals.push([k + 1]);
+    form.getRange(8, 2, LOTES_CONFIG.LIMITS.ROWS, 1).setValues(noVals);
+    SpreadsheetApp.flush();
+    if (matched > 0) {
+      try { ss.toast('\u21BB Sincronizado: ' + fechaDisplay + ' \u2014 ' + matched + ' lotes', 'Lotes', 4); } catch (ignoreToast2) {}
+    } else {
+      try { ss.toast('\u21BB Sincronizado: ' + fechaDisplay + ' \u2014 sin registros para ' + fechaDisplay + ', listo para cargar', 'Lotes', 5); } catch (ignoreToast3) {}
+    }
+  } catch (eWrite) {
+    try { Logger.log('rehidratarPorFecha_ write: ' + (eWrite && eWrite.message ? eWrite.message : String(eWrite))); } catch (ignore) {}
+  }
+  return matched;
 }
 
+// Public alias for menu Lotes → Resincronizar (must not end with underscore per spec)
 function rehidratarPorFecha() {
   return rehidratarPorFecha_();
 }

@@ -186,12 +186,29 @@ function lotesEnsureSchema(optSpreadsheet) {
 function lotesEnsureTableSheet_(ss, sheetKey, headers, headerColor) {
   var sheetName = LOTES_CONFIG.SHEETS[sheetKey];
   var sheet = ss.getSheetByName(sheetName);
-  if (!sheet) sheet = ss.insertSheet(sheetName);
+  var isNew = false;
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+    isNew = true;
+  }
   var width = headers.length;
   var headerRange = sheet.getRange(1, 1, 1, width);
   var current = headerRange.getValues()[0];
-  if (!lotesHeadersMatch_(current, headers)) {
+  var isBlank = true;
+  for (var b = 0; b < width; b++) {
+    if (String(current[b] || '').trim() !== '') { isBlank = false; break; }
+  }
+  if (isBlank || isNew) {
+    // Fresh sheet — create frozen header row (only case where we write headers)
     headerRange.setValues([headers]);
+  } else if (!lotesHeadersMatch_(current, headers)) {
+    // Existing sheet with mismatched header — warn only, do NOT auto-reorder (migration guard)
+    try {
+      lotesLogError_(LOTES_CONFIG.ERRORS.HEADER_MISMATCH,
+        'Header mismatch in ' + sheetName + ': expected ' + headers.join('|') + ' got ' + current.join('|'),
+        'A1:' + String.fromCharCode(64 + width) + '1', ss);
+    } catch (ignore) {}
+    try { Logger.log('lotes header mismatch warn-only: ' + sheetName); } catch (ignore2) {}
   }
   headerRange.setFontWeight('bold').setBackground(headerColor);
   sheet.setFrozenRows(1);
