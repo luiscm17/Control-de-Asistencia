@@ -95,11 +95,17 @@ function lotesTestConfigFrozen_() {
   lotesAssert_(LOTES_CONFIG.SHEETS.DB === 'db_lots', 'DB db_lots');
   lotesAssert_(LOTES_CONFIG.RANGES.D4 === 'D4', 'D4');
   lotesAssert_(LOTES_CONFIG.RANGES.F4 === 'F4', 'F4');
-  lotesAssert_(LOTES_CONFIG.RANGES.PAYLOAD === 'C8:G37', 'PAYLOAD C8:G37');
-  lotesAssert_(LOTES_CONFIG.DB_HEADERS.length === 11, 'DB_HEADERS 11 A:K');
+  lotesAssert_(LOTES_CONFIG.RANGES.HEADERS === 'B7:H7', 'HEADERS B7:H7');
+  lotesAssert_(LOTES_CONFIG.RANGES.FORM === 'B8:H37', 'FORM B8:H37');
+  lotesAssert_(LOTES_CONFIG.RANGES.PAYLOAD === 'C8:H37', 'PAYLOAD C8:H37');
+  lotesAssert_(LOTES_CONFIG.RANGES.DB_HEADERS === 'A1:L1', 'DB_HEADERS A1:L1');
+  lotesAssert_(LOTES_CONFIG.DB_HEADERS.length === 12, 'DB_HEADERS 12 A:L');
   lotesAssert_(LOTES_CONFIG.DB_HEADERS[0] === 'id' && LOTES_CONFIG.DB_HEADERS[1] === 'fecha', 'id|fecha frozen');
-  lotesAssert_(LOTES_CONFIG.IDX.ID === 0 && LOTES_CONFIG.IDX.FECHA === 1 && LOTES_CONFIG.IDX.CREADO === 7, 'IDX 0,1,7');
-  lotesAssert_(LOTES_CONFIG.LIMITS.ROWS === 30 && LOTES_CONFIG.LIMITS.COLS === 11, 'LIMITS 30x11');
+  lotesAssert_(LOTES_CONFIG.DB_HEADERS[4] === 'linea_presentacion', 'linea_presentacion at 4');
+  lotesAssert_(LOTES_CONFIG.DB_HEADERS[5] === 'codigo_lote', 'codigo_lote at 5');
+  lotesAssert_(LOTES_CONFIG.IDX.ID === 0 && LOTES_CONFIG.IDX.FECHA === 1 && LOTES_CONFIG.IDX.CREADO === 8, 'IDX 0,1,8');
+  lotesAssert_(LOTES_CONFIG.IDX.LINEA_PRESENTACION === 4 && LOTES_CONFIG.IDX.CODIGO_LOTE === 5, 'IDX LINEA 4 CODIGO 5');
+  lotesAssert_(LOTES_CONFIG.LIMITS.ROWS === 30 && LOTES_CONFIG.LIMITS.COLS === 12, 'LIMITS 30x12');
   lotesAssert_(LOTES_CONFIG.UI.DEBOUNCE_MS === 3000, 'DEBOUNCE 3000');
   lotesAssert_(LOTES_CONFIG.UI.DB_HEADER_COLOR === '#e8f0fe', 'DB_HEADER_COLOR');
   lotesAssert_(LOTES_CONFIG.UI.ERRORS_HEADER_COLOR === '#fce8e6', 'ERRORS_HEADER_COLOR');
@@ -135,19 +141,19 @@ function lotesTestParseA1_() {
   lotesAssert_(p2.row === 4 && p2.col === 6, 'F4 → 4,6');
   var p3 = lotesParseA1_('B8');
   lotesAssert_(p3.row === 8 && p3.col === 2, 'B8 → 8,2');
-  var p4 = lotesParseA1_('G37');
-  lotesAssert_(p4.row === 37 && p4.col === 7, 'G37 → 37,7');
+  var p4 = lotesParseA1_('H37');
+  lotesAssert_(p4.row === 37 && p4.col === 8, 'H37 → 37,8');
 }
 
 function lotesTestParseRange_() {
-  var r = lotesParseRange_('B8:G37');
-  lotesAssert_(r.r1 === 8 && r.c1 === 2 && r.r2 === 37 && r.c2 === 7, 'B8:G37 parsed');
+  var r = lotesParseRange_('B8:H37');
+  lotesAssert_(r.r1 === 8 && r.c1 === 2 && r.r2 === 37 && r.c2 === 8, 'B8:H37 parsed');
   var r2 = lotesParseRange_('D4');
   lotesAssert_(r2.r1 === 4 && r2.c1 === 4 && r2.r2 === 4 && r2.c2 === 4, 'D4 single cell');
-  var r3 = lotesParseRange_('C8:G37');
-  lotesAssert_(r3.c1 === 3 && r3.c2 === 7, 'C8:G37 payload 3..7');
-  var r4 = lotesParseRange_('A1:K1');
-  lotesAssert_(r4.r1 === 1 && r4.c1 === 1 && r4.r2 === 1 && r4.c2 === 11, 'A1:K1 headers');
+  var r3 = lotesParseRange_('C8:H37');
+  lotesAssert_(r3.c1 === 3 && r3.c2 === 8, 'C8:H37 payload 3..8');
+  var r4 = lotesParseRange_('A1:L1');
+  lotesAssert_(r4.r1 === 1 && r4.c1 === 1 && r4.r2 === 1 && r4.c2 === 12, 'A1:L1 headers');
 }
 
 // --- Unit: HeadersMatch ---
@@ -158,7 +164,7 @@ function lotesTestHeadersMatch_() {
   lotesAssert_(lotesHeadersMatch_(['id', 'fecha'], exp) === false, 'length mismatch false');
   var mutated = exp.slice(); mutated[2] = 'titulo_x';
   lotesAssert_(lotesHeadersMatch_(mutated, exp) === false, 'mutated mismatch false');
-  lotesAssert_(lotesHeadersMatch_([' id ', ' fecha ', ' titulo ', ' tipo_material ', ' codigo_lote ', ' color ', ' observacion ', ' creado ', ' actualizado ', ' creado_por ', ' actualizado_por'], LOTES_CONFIG.DB_HEADERS) === true, 'trimmed match true');
+  lotesAssert_(lotesHeadersMatch_([' id ', ' fecha ', ' titulo ', ' tipo_material ', ' linea_presentacion ', ' codigo_lote ', ' color ', ' observacion ', ' creado ', ' actualizado ', ' creado_por ', ' actualizado_por'], LOTES_CONFIG.DB_HEADERS) === true, 'trimmed match true');
 }
 
 // --- Unit: NormalizeCheckbox (TRUE/FALSE/VERDADERO/FALSO/boolean/empty) ---
@@ -218,9 +224,9 @@ function lotesTestIsDateEdit_() {
 // --- Unit: ReadForm titulo truncation (empty/whitespace → no persist) ---
 
 function lotesTestReadFormTruncation_() {
-  // Simulate payload B8:G37 displayValues: 30 rows — test truncation gate
+  // Simulate payload B8:H37 displayValues: 30 rows — test truncation gate
   var payload = [];
-  for (var i = 0; i < 30; i++) payload.push(['' + (i + 1), i === 0 ? '  2/24  ' : (i === 1 ? '   ' : ''), i === 0 ? 'HB' : '', '', 'MOSTASA', '']);
+  for (var i = 0; i < 30; i++) payload.push(['' + (i + 1), i === 0 ? '  2/24  ' : (i === 1 ? '   ' : ''), i === 0 ? 'HB' : '', i === 0 ? 'LINEA-A' : '', '', 'MOSTASA', '']);
   // titulo at row0 trimmed non-empty → persist, row1 whitespace → empty gate
   var titulo0 = String(payload[0][1] || '').trim();
   var titulo1 = String(payload[1][1] || '').trim();
@@ -228,10 +234,45 @@ function lotesTestReadFormTruncation_() {
   lotesAssert_(titulo1 === '', 'whitespace titulo → \"\"');
   lotesAssert_(typeof lotesReadForm_ === 'function', 'lotesReadForm_ exists');
   lotesAssert_(typeof lotesIsEmptyRow_ === 'function', 'lotesIsEmptyRow_ exists');
-  var rowEmpty = { titulo: '   ', tipo_material: '', codigo_lote: '', color: '', observacion: '' };
+  var rowEmpty = { titulo: '   ', tipo_material: '', linea_presentacion: '', codigo_lote: '', color: '', observacion: '' };
   lotesAssert_(lotesIsEmptyRow_(rowEmpty) === true, 'whitespace row empty');
-  var rowNonEmpty = { titulo: '2/24', tipo_material: 'HB', codigo_lote: '', color: 'MOSTASA', observacion: '' };
+  var rowNonEmpty = { titulo: '2/24', tipo_material: 'HB', linea_presentacion: 'LP1', codigo_lote: '', color: 'MOSTASA', observacion: '' };
   lotesAssert_(lotesIsEmptyRow_(rowNonEmpty) === false, 'non-empty titulo false');
+}
+
+// --- Unit: linea_presentacion passthrough (new column 21) ---
+
+function lotesTestLineaPresentacionPassthrough_() {
+  var fechaKey = '2026-09-21';
+  var fechaDisplay = '21/09/2026';
+  var snapRow = { posicion: 2, titulo: 'Lote LP', tipo_material: 'HB', linea_presentacion: '  LP-10  ', codigo_lote: 'L-002', color: 'AZUL', observacion: 'obs' };
+  var built = lotesBuildRowValues_(snapRow, { byId: {} }, 2, fechaDisplay, fechaKey, '2026-09-22 08:00:00', 'a@factory.bo');
+  lotesAssert_(built.values[LOTES_CONFIG.IDX.LINEA_PRESENTACION] === '  LP-10  ', 'linea_presentacion raw passthrough preserved (no trim)');
+  lotesAssert_(built.values[LOTES_CONFIG.IDX.CODIGO_LOTE] === 'L-002', 'codigo_lote shifted to IDX 5');
+  lotesAssert_(built.values[LOTES_CONFIG.IDX.COLOR] === 'AZUL', 'color at IDX 6');
+  lotesAssert_(built.values[LOTES_CONFIG.IDX.OBSERVACION] === 'obs', 'observacion at IDX 7');
+  // Rehydrate matrix COLUMN: linea_presentacion must round-trip via IDX
+  var byPos = {};
+  var fakeRow = new Array(12);
+  fakeRow[LOTES_CONFIG.IDX.ID] = '2026-09-21-2';
+  fakeRow[LOTES_CONFIG.IDX.FECHA] = '21/09/2026';
+  fakeRow[LOTES_CONFIG.IDX.TITULO] = 'Lote LP';
+  fakeRow[LOTES_CONFIG.IDX.TIPO_MATERIAL] = 'HB';
+  fakeRow[LOTES_CONFIG.IDX.LINEA_PRESENTACION] = 'LP-10';
+  fakeRow[LOTES_CONFIG.IDX.CODIGO_LOTE] = 'L-002';
+  fakeRow[LOTES_CONFIG.IDX.COLOR] = 'AZUL';
+  fakeRow[LOTES_CONFIG.IDX.OBSERVACION] = 'obs';
+  byPos[2] = fakeRow;
+  var matrixRow = [
+    String(byPos[2][LOTES_CONFIG.IDX.TITULO] || ''),
+    String(byPos[2][LOTES_CONFIG.IDX.TIPO_MATERIAL] || ''),
+    String(byPos[2][LOTES_CONFIG.IDX.LINEA_PRESENTACION] || ''),
+    String(byPos[2][LOTES_CONFIG.IDX.CODIGO_LOTE] || ''),
+    String(byPos[2][LOTES_CONFIG.IDX.COLOR] || ''),
+    String(byPos[2][LOTES_CONFIG.IDX.OBSERVACION] || '')
+  ];
+  lotesAssert_(matrixRow[2] === 'LP-10', 'rehydrate matrix col E is linea_presentacion');
+  lotesAssert_(matrixRow[3] === 'L-002', 'rehydrate matrix col F is codigo_lote');
 }
 
 // --- Integration (fake sheet state, no prod mutation): guard, PK, delete, rehydrate, B invariant, lock ---
@@ -251,7 +292,7 @@ function lotesTestCreate3Rows_() {
   var fechaKey = '2026-09-21';
   var fechaDisplay = '21/09/2026';
   var rows = [];
-  for (var i = 0; i < 30; i++) rows.push({ posicion: i + 1, titulo: ([1, 3, 5].indexOf(i + 1) !== -1 ? 'Titulo-' + (i + 1) : ''), tipo_material: 'HB', codigo_lote: 'L-00' + (i + 1), color: 'MOSTASA', observacion: '' });
+  for (var i = 0; i < 30; i++) rows.push({ posicion: i + 1, titulo: ([1, 3, 5].indexOf(i + 1) !== -1 ? 'Titulo-' + (i + 1) : ''), tipo_material: 'HB', linea_presentacion: 'LP-' + (i + 1), codigo_lote: 'L-00' + (i + 1), color: 'MOSTASA', observacion: '' });
   // Verify pk derivation
   for (var k = 0; k < rows.length; k++) {
     var r = rows[k];
@@ -271,6 +312,7 @@ function lotesTestCreate3Rows_() {
   lotesAssert_(built.values[LOTES_CONFIG.IDX.ID] === '2026-09-21-1', 'built id 2026-09-21-1');
   lotesAssert_(built.values[LOTES_CONFIG.IDX.FECHA] === '21/09/2026', 'built fecha dd/MM/yyyy');
   lotesAssert_(built.values[LOTES_CONFIG.IDX.TITULO] === 'Titulo-1', 'built titulo');
+  lotesAssert_(built.values[LOTES_CONFIG.IDX.LINEA_PRESENTACION] === 'LP-1', 'built linea_presentacion');
   lotesAssert_(built.isNew === true, 'isNew true for append');
   lotesAssert_(built.values[LOTES_CONFIG.IDX.CREADO] === now && built.values[LOTES_CONFIG.IDX.ACTUALIZADO] === now, 'creado=actualizado on create');
 }
@@ -285,20 +327,22 @@ function lotesTestReSavePreservesCreado_() {
     var tsCreated = '2026-09-22 08:00:00';
     var tsUpdated = '2026-09-22 10:15:00';
     var fechaKey = '2026-09-21'; var fechaDisplay = '21/09/2026';
-    var existingRow = new Array(11);
+    var existingRow = new Array(12);
     existingRow[LOTES_CONFIG.IDX.ID] = '2026-09-21-1';
     existingRow[LOTES_CONFIG.IDX.FECHA] = '21/09/2026';
     existingRow[LOTES_CONFIG.IDX.TITULO] = 'Titulo-1';
+    existingRow[LOTES_CONFIG.IDX.LINEA_PRESENTACION] = 'LP-orig';
     existingRow[LOTES_CONFIG.IDX.CREADO] = tsCreated;
     existingRow[LOTES_CONFIG.IDX.CREADO_POR] = 'a@factory.bo';
     existingRow[LOTES_CONFIG.IDX.ACTUALIZADO] = tsCreated;
     existingRow[LOTES_CONFIG.IDX.ACTUALIZADO_POR] = 'a@factory.bo';
     var state = { byId: {}, byRow: [] };
     state.byId['2026-09-21-1'] = { rowNum: 2, data: existingRow.slice(), id: '2026-09-21-1' };
-    var snapRow = { posicion: 1, titulo: 'Titulo-1-edit', tipo_material: 'HB2', codigo_lote: 'L-099', color: 'ROJO', observacion: 'obs2' };
+    var snapRow = { posicion: 1, titulo: 'Titulo-1-edit', tipo_material: 'HB2', linea_presentacion: 'LP-new', codigo_lote: 'L-099', color: 'ROJO', observacion: 'obs2' };
     var built = lotesBuildRowValues_(snapRow, state, 1, fechaDisplay, fechaKey, tsUpdated, 'b@factory.bo');
     lotesAssert_(built.values[LOTES_CONFIG.IDX.CREADO] === tsCreated, 'creado preserved ' + tsCreated);
     lotesAssert_(built.values[LOTES_CONFIG.IDX.CREADO_POR] === 'a@factory.bo', 'creado_por preserved a@factory.bo');
+    lotesAssert_(built.values[LOTES_CONFIG.IDX.LINEA_PRESENTACION] === 'LP-new', 'linea_presentacion updated');
     lotesAssert_(built.values[LOTES_CONFIG.IDX.ACTUALIZADO] === tsUpdated, 'actualizado refreshed');
     lotesAssert_(built.values[LOTES_CONFIG.IDX.ACTUALIZADO_POR] === 'b@factory.bo', 'actualizado_por b@factory.bo');
     lotesAssert_(built.isNew === false && built.creadoPreserved === true, 'update flags');
@@ -315,10 +359,10 @@ function lotesTestDeleteOnClear_() {
   lotesAssert_(ids.length === 3, '3 ids');
   // byId map
   var byId = {};
-  for (var i = 0; i < ids.length; i++) byId[ids[i]] = { rowNum: 2 + i, data: new Array(11), id: ids[i] };
+  for (var i = 0; i < ids.length; i++) byId[ids[i]] = { rowNum: 2 + i, data: new Array(12), id: ids[i] };
   lotesAssert_(byId['2026-09-21-2'].rowNum === 3, 'posicion 2 rowNum 3');
   // titulo empty && byId[id] → queue delete bottom-up
-  var emptyRow = { posicion: 2, titulo: '   ', tipo_material: '', codigo_lote: '', color: '', observacion: '' };
+  var emptyRow = { posicion: 2, titulo: '   ', tipo_material: '', linea_presentacion: '', codigo_lote: '', color: '', observacion: '' };
   lotesAssert_(String(emptyRow.titulo || '').trim() === '', 'empty gate triggers delete');
   // All-empty C8:C37 deletes all fecha rows (spec: All-empty save)
   var allEmpty = true;
@@ -332,16 +376,17 @@ function lotesTestRehydrateExisting_() {
   lotesAssert_(typeof lotesGetRange_ === 'function', 'lotesGetRange_ exists');
   // Simulate byPos map
   var byPos = {};
-  byPos[1] = ['2026-09-20-1', '20/09/2026', 'HB Lote A', 'HB', 'L-A', 'AZUL', '', 'ts', 'ts', 'a', 'a'];
-  byPos[5] = ['2026-09-20-5', '20/09/2026', 'HB Lote E', 'HB', 'L-E', 'ROJO', '', 'ts', 'ts', 'a', 'a'];
+  byPos[1] = ['2026-09-20-1', '20/09/2026', 'HB Lote A', 'HB', 'LP-A', 'L-A', 'AZUL', '', 'ts', 'ts', 'a', 'a'];
+  byPos[5] = ['2026-09-20-5', '20/09/2026', 'HB Lote E', 'HB', 'LP-E', 'L-E', 'ROJO', '', 'ts', 'ts', 'a', 'a'];
   var matrix = [];
   var matched = 0;
   for (var p = 1; p <= 30; p++) {
-    if (byPos[p]) { matched++; matrix.push([byPos[p][2], byPos[p][3], byPos[p][4], byPos[p][5], byPos[p][6]]); }
-    else matrix.push(['', '', '', '', '']);
+    if (byPos[p]) { matched++; matrix.push([byPos[p][2], byPos[p][3], byPos[p][4], byPos[p][5], byPos[p][6], byPos[p][7]]); }
+    else matrix.push(['', '', '', '', '', '']);
   }
   lotesAssert_(matrix[0][0] === 'HB Lote A', 'C8 HB Lote A');
   lotesAssert_(matrix[4][0] === 'HB Lote E', 'C12 HB Lote E');
+  lotesAssert_(matrix[0][2] === 'LP-A', 'E8 linea_presentacion LP-A');
   lotesAssert_(matrix[1][0] === '', 'C9 empty');
   lotesAssert_(matched === 2, 'matched 2');
   // B invariant: re-assert B8:B37=1..30 after clear
@@ -350,31 +395,31 @@ function lotesTestRehydrateExisting_() {
 }
 
 function lotesTestRehydrateMissing_() {
-  // Missing fecha 22/09/2026 clears C8:G37, leaves B=1..30
+  // Missing fecha 22/09/2026 clears C8:H37, leaves B=1..30
   var fechaKey = '2026-09-22'; var fechaDisplay = '22/09/2026';
   // byPos empty → matrix all empty, matched 0 → toast sin registros
   var byPos = {};
   var matrix = []; var matched = 0;
   for (var p = 1; p <= 30; p++) {
     if (byPos[p]) matched++;
-    matrix.push(['', '', '', '', '']);
+    matrix.push(['', '', '', '', '', '']);
   }
   lotesAssert_(matched === 0, 'missing → 0 lotes');
-  lotesAssert_(matrix[0].join('|') === '||||', 'C8:G8 empty');
+  lotesAssert_(matrix[0].join('|') === '|||||', 'C8:H8 empty 6 cols');
   lotesAssert_(typeof lotesIsDateEdit_ === 'function', 'IsDateEdit exists for D4 trigger');
 }
 
 function lotesTestBInvariant_() {
   // B8:B37 never persisted — scan db_lots for No values must not contain 1..30
-  // Verify buildRowValues never writes posicion number to A:K (only to id suffix)
+  // Verify buildRowValues never writes posicion number to A:L (only to id suffix)
   var fechaKey = '2026-09-21'; var fechaDisplay = '21/09/2026';
-  var snapRow = { titulo: '2/24', tipo_material: 'HB', codigo_lote: '', color: 'MOSTASA', observacion: '' };
+  var snapRow = { titulo: '2/24', tipo_material: 'HB', linea_presentacion: 'LP-X', codigo_lote: '', color: 'MOSTASA', observacion: '' };
   var built = lotesBuildRowValues_(snapRow, { byId: {} }, 8, fechaDisplay, fechaKey, '2026-09-22 08:00:00', 'a@factory.bo');
   lotesAssert_(built.values.indexOf(8) === -1 || built.values[LOTES_CONFIG.IDX.ID] === '2026-09-21-8', 'posicion not in values except id suffix');
   lotesAssert_(built.values[LOTES_CONFIG.IDX.FECHA] === '21/09/2026', 'fecha display not No');
-  // Rehydrate: B is re-asserted via form.getRange(8,2,30,1).setValues([[1]..[30]]) — payload is C:G only
-  lotesAssert_(LOTES_CONFIG.RANGES.PAYLOAD === 'C8:G37', 'payload C8:G37 not B');
-  lotesAssert_(LOTES_CONFIG.RANGES.FORM === 'B8:G37', 'FORM B8:G37 full but DB ignores B');
+  // Rehydrate: B is re-asserted via form.getRange(8,2,30,1).setValues([[1]..[30]]) — payload is C:H only
+  lotesAssert_(LOTES_CONFIG.RANGES.PAYLOAD === 'C8:H37', 'payload C8:H37 not B');
+  lotesAssert_(LOTES_CONFIG.RANGES.FORM === 'B8:H37', 'FORM B8:H37 full but DB ignores B');
 }
 
 function lotesTestF4Guard_() {
@@ -451,6 +496,7 @@ function runLotesTests() {
     lotesTestIsSaveCheckboxEvent_,
     lotesTestIsDateEdit_,
     lotesTestReadFormTruncation_,
+    lotesTestLineaPresentacionPassthrough_,
     lotesTestEmptyD4Guard_,
     lotesTestCreate3Rows_,
     lotesTestReSavePreservesCreado_,

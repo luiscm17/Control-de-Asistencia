@@ -16,7 +16,7 @@
 function guardarLotes() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
 
-  // Snapshot reads D4 via getValue passthrough (no validation) + B8:G37 batch displayValues
+  // Snapshot reads D4 via getValue passthrough (no validation) + B8:H37 batch displayValues
   var snapshot = lotesReadForm_(ss);
 
   // Empty or non-Date D4 guard: "" for blank/string pasted that Sheets did not coerce to Date
@@ -120,12 +120,12 @@ function lotesResetCheckbox_(ss) {
 /**
  * rehidratarPorFecha_ — full single-scan rehydrate (PR3 Phase 3.1).
  *
- * - D4 passthrough via getValue() — empty/invalid Date clears C8:G37, re-asserts B8:B37=1..30, flush, toast, return 0
- * - Valid date: derive fechaDisplay (dd/MM/yyyy) + fechaKey (yyyy-MM-dd), single getValues() scan of db_lots A:K (no lock, read-only),
+ * - D4 passthrough via getValue() — empty/invalid Date clears C8:H37, re-asserts B8:B37=1..30, flush, toast, return 0
+ * - Valid date: derive fechaDisplay (dd/MM/yyyy) + fechaKey (yyyy-MM-dd), single getValues() scan of db_lots A:L (no lock, read-only),
  *   build posicion→row map where row[ID]==fechaKey-posicion canonical OR row[FECHA]==fechaDisplay fallback (legacy display),
- *   clear C8:G37, build 30x5 matrix C:G ordered by posicion 1..30 (empty strings for missing), setValues on C8:G37,
+ *   clear C8:H37, build 30x6 matrix C:H ordered by posicion 1..30 (empty strings for missing), setValues on C8:H37,
  *   re-assert B8:B37=1..30, flush, toast "↻ Sincronizado: dd/MM/yyyy — M lotes" or "— sin registros para dd/MM/yyyy, listo para cargar".
- * - Writes only C:G (payload) + B No re-assert — B never persisted per spec "No column persisted".
+ * - Writes only C:H (payload) + B No re-assert — B never persisted per spec "No column persisted".
  */
 function rehidratarPorFecha_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -148,7 +148,7 @@ function rehidratarPorFecha_() {
     } catch (ignore2) {}
     return 0;
   }
-  // Valid date — single batch scan of db_lots A:K (no lock, read-only)
+  // Valid date — single batch scan of db_lots A:L (no lock, read-only)
   var dbSheet = lotesGetDbSheet_(ss);
   var byPos = {};
   if (dbSheet && dbSheet.getLastRow() >= 2) {
@@ -185,7 +185,7 @@ function rehidratarPorFecha_() {
       try { Logger.log('rehidratarPorFecha_ scan: ' + (eScan && eScan.message ? eScan.message : String(eScan))); } catch (ignore) {}
     }
   }
-  // Clear C8:G37 then build 30x5 matrix C:G by posicion (empty strings for missing)
+  // Clear C8:H37 then build 30x6 matrix C:H by posicion (empty strings for missing)
   try { lotesGetRange_(form, LOTES_CONFIG.RANGES.PAYLOAD).clearContent(); } catch (ignoreClear) {}
   var matrix = [];
   var matched = 0;
@@ -196,12 +196,13 @@ function rehidratarPorFecha_() {
       matrix.push([
         String(entry[LOTES_CONFIG.IDX.TITULO] || ''),
         String(entry[LOTES_CONFIG.IDX.TIPO_MATERIAL] || ''),
+        String(entry[LOTES_CONFIG.IDX.LINEA_PRESENTACION] || ''),
         String(entry[LOTES_CONFIG.IDX.CODIGO_LOTE] || ''),
         String(entry[LOTES_CONFIG.IDX.COLOR] || ''),
         String(entry[LOTES_CONFIG.IDX.OBSERVACION] || '')
       ]);
     } else {
-      matrix.push(['', '', '', '', '']);
+      matrix.push(['', '', '', '', '', '']);
     }
   }
   try {

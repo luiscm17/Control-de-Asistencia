@@ -19,7 +19,7 @@ function lotesBuildDbState_(dbSheet) {
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return { byId: {}, byRow: [], sheet: sheet, lastRow: lastRow };
   var width = LOTES_CONFIG.LIMITS.COLS;
-  // Single batch read of A:K — never per-cell, never per-row loop with getValue()
+  // Single batch read of A:L — never per-cell, never per-row loop with getValue()
   var values = sheet.getRange(2, 1, lastRow - 1, width).getValues();
   var byId = {};
   var byRow = [];
@@ -50,9 +50,10 @@ function lotesBuildRowValues_(snapshotRow, state, posicion, fechaDisplay, fechaK
   var fechaD = String(fechaDisplay || '').trim();
   if (!fechaK || !fechaD) throw new Error('fechaKey and fechaDisplay required');
   var id = fechaK + '-' + pos;
-  // No column persisted — B is fecha display, never posicion number. C:G from form C:G.
+  // No column persisted — B is fecha display, never posicion number. C:H from form C:H.
   var titulo = String(snapshotRow.titulo || '').trim();
   var tipoMaterial = String(snapshotRow.tipo_material || '');
+  var lineaPresentacion = String(snapshotRow.linea_presentacion || '');
   var codigoLote = String(snapshotRow.codigo_lote || '');
   var color = String(snapshotRow.color || '');
   var observacion = String(snapshotRow.observacion || '');
@@ -63,6 +64,7 @@ function lotesBuildRowValues_(snapshotRow, state, posicion, fechaDisplay, fechaK
   values[LOTES_CONFIG.IDX.FECHA] = fechaD;
   values[LOTES_CONFIG.IDX.TITULO] = titulo;
   values[LOTES_CONFIG.IDX.TIPO_MATERIAL] = tipoMaterial;
+  values[LOTES_CONFIG.IDX.LINEA_PRESENTACION] = lineaPresentacion;
   values[LOTES_CONFIG.IDX.CODIGO_LOTE] = codigoLote;
   values[LOTES_CONFIG.IDX.COLOR] = color;
   values[LOTES_CONFIG.IDX.OBSERVACION] = observacion;
@@ -143,7 +145,7 @@ function lotesUpsertDeleteBatch_(ss, snapshot, state) {
         if (state && state.byRow) state.byRow.push(newEntry);
         created++;
       }
-      // Apply number formats for B dd/MM/yyyy and H:I yyyy-MM-dd HH:mm:ss on written row
+      // Apply number formats for B dd/MM/yyyy and I:J yyyy-MM-dd HH:mm:ss on written row
       try {
         var rowNumForFmt = built.rowNum > 1 ? built.rowNum : (dbSheet.getLastRow());
         // B is col 2 formatted as dd/MM/yyyy

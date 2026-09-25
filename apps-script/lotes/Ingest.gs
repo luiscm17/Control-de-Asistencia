@@ -6,7 +6,7 @@
  * Isolation: apps-script/lotes/ only — no imports from sibling apps-script/* projects.
  * Built-ins only: SpreadsheetApp, LockService, Session, Utilities, PropertiesService, ScriptApp
  * D4 is native DATE dd/MM/yyyy passthrough via getValue() — no validation or coercion.
- * B8:G37 30×6 batch read via getDisplayValues through Config SSOT; B (No 1..30) ignored for DB.
+ * B8:H37 30×7 batch read via getDisplayValues through Config SSOT; B (No 1..30) ignored for DB.
  *
  * INSTALL: Extensions > Apps Script > paste this project > Save > Reload sheet > setupLotes once
  * VERIFY: Use a COPY of 19lBJHHKsusI6Eqkni-zh8us6ePoEHscEgrIPrFK-zhE — never prod.
@@ -29,7 +29,7 @@ function lotesReadForm_(optSpreadsheet) {
   var fechaDisplay = lotesFechaDisplay_(fechaRaw);
   var fechaDate = (fechaRaw instanceof Date && !isNaN(fechaRaw.getTime())) ? fechaRaw : null;
 
-  // Single batch read of B8:G37 as DISPLAY values — C:G are STRING payload, B is visual No ignored
+  // Single batch read of B8:H37 as DISPLAY values — C:H are STRING payload (6 cols), B is visual No ignored
   var payload = [];
   try {
     var formRange = lotesGetRange_(form, LOTES_CONFIG.RANGES.FORM);
@@ -37,19 +37,21 @@ function lotesReadForm_(optSpreadsheet) {
   } catch (e2) {
     payload = [];
   }
-  // FORM is B8:G37 30 rows × 6 cols: B=No(0), C=Titulo(1), D=TipoMaterial(2), E=CodigoLote(3), F=Color(4), G=Observacion(5)
+  // FORM is B8:H37 30 rows × 7 cols: B=No(0), C=Titulo(1), D=TipoMaterial(2), E=LineaPresentacion(3), F=CodigoLote(4), G=Color(5), H=Observacion(6)
   var rows = [];
   for (var i = 0; i < LOTES_CONFIG.LIMITS.ROWS; i++) {
-    var rawRow = payload[i] || ['', '', '', '', '', ''];
+    var rawRow = payload[i] || ['', '', '', '', '', '', ''];
     var titulo = String(rawRow[1] || '').trim();
     var tipoMaterial = String(rawRow[2] || '');
-    var codigoLote = String(rawRow[3] || '');
-    var color = String(rawRow[4] || '');
-    var observacion = String(rawRow[5] || '');
+    var lineaPresentacion = String(rawRow[3] || '');
+    var codigoLote = String(rawRow[4] || '');
+    var color = String(rawRow[5] || '');
+    var observacion = String(rawRow[6] || '');
     rows.push({
       posicion: i + 1,
       titulo: titulo,
       tipo_material: tipoMaterial,
+      linea_presentacion: lineaPresentacion,
       codigo_lote: codigoLote,
       color: color,
       observacion: observacion,
@@ -72,9 +74,9 @@ function lotesIsEmptyRow_(r) {
   // titulo is the persistence gate — empty titulo means no row (whitespace counts as empty)
   var titulo = r.titulo != null ? String(r.titulo).trim() : '';
   if (titulo !== '') return false;
-  // Also treat tipo_material/codigo_lote/color/observacion in isolation as not enough — titulo is the gate.
-  // For rehydration completeness, still consider completely blank C:G as empty.
-  var fields = [r.tipo_material, r.codigo_lote, r.color, r.observacion];
+  // Also treat tipo_material/linea_presentacion/codigo_lote/color/observacion in isolation as not enough — titulo is the gate.
+  // For rehydration completeness, still consider completely blank C:H as empty.
+  var fields = [r.tipo_material, r.linea_presentacion, r.codigo_lote, r.color, r.observacion];
   for (var i = 0; i < fields.length; i++) {
     if (String(fields[i] || '').trim() !== '') return false;
   }

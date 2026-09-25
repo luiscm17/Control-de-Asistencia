@@ -8,8 +8,8 @@
  * Timezone: America/La_Paz (UTC-4, no DST) for all audit timestamps.
  *
  * Sheet: lotes-form (gid 1098679039) — D4 DATE dd/MM/yyyy passthrough, F4 checkbox FALSE→TRUE,
- *        B7:G7 headers, B8:G37 30 rows (C8:G37 payload, B8:B37 visual 1..30 not persisted).
- * DB: db_lots A:K — PK id = yyyy-MM-dd-posicion (posicion 1 maps B8, 30 maps B37).
+ *        B7:H7 headers, B8:H37 30 rows (C8:H37 payload 6 cols, B8:B37 visual 1..30 not persisted).
+ * DB: db_lots A:L — PK id = yyyy-MM-dd-posicion (posicion 1 maps B8, 30 maps B37).
  *
  * No literal getRange("D4") outside this file — use lotesGetRange_ helpers.
  *
@@ -27,10 +27,10 @@ var LOTES_CONFIG = Object.freeze({
   RANGES: Object.freeze({
     D4: 'D4',
     F4: 'F4',
-    HEADERS: 'B7:G7',
-    FORM: 'B8:G37',
-    PAYLOAD: 'C8:G37',
-    DB_HEADERS: 'A1:K1',
+    HEADERS: 'B7:H7',
+    FORM: 'B8:H37',
+    PAYLOAD: 'C8:H37',
+    DB_HEADERS: 'A1:L1',
     ERRORS_HEADERS: 'A1:F1'
   }),
   DB_HEADERS: Object.freeze([
@@ -38,6 +38,7 @@ var LOTES_CONFIG = Object.freeze({
     'fecha',
     'titulo',
     'tipo_material',
+    'linea_presentacion',
     'codigo_lote',
     'color',
     'observacion',
@@ -59,17 +60,18 @@ var LOTES_CONFIG = Object.freeze({
     FECHA: 1,
     TITULO: 2,
     TIPO_MATERIAL: 3,
-    CODIGO_LOTE: 4,
-    COLOR: 5,
-    OBSERVACION: 6,
-    CREADO: 7,
-    ACTUALIZADO: 8,
-    CREADO_POR: 9,
-    ACTUALIZADO_POR: 10
+    LINEA_PRESENTACION: 4,
+    CODIGO_LOTE: 5,
+    COLOR: 6,
+    OBSERVACION: 7,
+    CREADO: 8,
+    ACTUALIZADO: 9,
+    CREADO_POR: 10,
+    ACTUALIZADO_POR: 11
   }),
   LIMITS: Object.freeze({
     ROWS: 30,
-    COLS: 11,
+    COLS: 12,
     ERROR_COLUMNS: 6
   }),
   UI: Object.freeze({
@@ -173,7 +175,7 @@ function lotesHeadersMatch_(actual, expected) {
   return true;
 }
 
-// --- Schema: ensure db_lots A:K + Errors A:F + F4 checkbox ---
+// --- Schema: ensure db_lots A:L + Errors A:F + F4 checkbox ---
 
 function lotesEnsureSchema(optSpreadsheet) {
   var ss = optSpreadsheet || SpreadsheetApp.getActiveSpreadsheet();
@@ -217,7 +219,7 @@ function lotesEnsureTableSheet_(ss, sheetKey, headers, headerColor) {
   try {
     if (sheetKey === 'DB' && sheet.getMaxRows() > 1) {
       var rows = Math.max(1, sheet.getMaxRows() - 1);
-      // B fecha dd/MM/yyyy (col 2), H:I timestamps yyyy-MM-dd HH:mm:ss (cols 8-9)
+      // B fecha dd/MM/yyyy (col 2), I:J timestamps yyyy-MM-dd HH:mm:ss (cols 9-10)
       sheet.getRange(2, 2, rows, 1).setNumberFormat('dd/MM/yyyy');
       sheet.getRange(2, LOTES_CONFIG.IDX.CREADO + 1, rows, 2).setNumberFormat('yyyy-MM-dd HH:mm:ss');
     }

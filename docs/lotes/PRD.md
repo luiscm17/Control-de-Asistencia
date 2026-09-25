@@ -12,7 +12,7 @@
 
 Seguimiento diario de lotes por fecha en la hoja `lotes-form`. La hoja funciona como formulario reutilizable y su contenido se persiste en la tabla `db_lots`.
 
-**Solucion:** Un checkbox en `F4` (`FALSE→TRUE`) dispara `guardarLotes()` con upsert idempotente por `fecha` + posicion de fila. La fecha en `D4` con formato `dd/MM/yyyy` nativo de Sheets (sin validacion ni transformacion en Script, `getValue()` directo) controla la vista: al cambiar `D4` o ejecutar `Resincronizar`, si existen registros para esa fecha se cargan en `B8:G37`; si no, el formulario queda limpio. `America/La_Paz` solo para auditoria (`actualizado`, `creado_por`).
+**Solucion:** Un checkbox en `F4` (`FALSE→TRUE`) dispara `guardarLotes()` con upsert idempotente por `fecha` + posicion de fila. La fecha en `D4` con formato `dd/MM/yyyy` nativo de Sheets (sin validacion ni transformacion en Script, `getValue()` directo) controla la vista: al cambiar `D4` o ejecutar `Resincronizar`, si existen registros para esa fecha se cargan en `B8:H37`; si no, el formulario queda limpio. `America/La_Paz` solo para auditoria (`actualizado`, `creado_por`).
 
 ## 2. Estado Actual Verificado (live `playwright-cli` + `export?format=csv`)
 
@@ -20,7 +20,7 @@ Seguimiento diario de lotes por fecha en la hoja `lotes-form`. La hoja funciona 
 
 | Hoja | Estado |
 |------|--------|
-| `lotes-form` | Unica hoja de interes. Titulo `C2=Seguimiento de lotes`, fecha `D4` formato `dd/MM/yyyy`, cabecera `B7:G7`, datos `B8:G37` (30 filas). Checkbox destino `F4`. |
+| `lotes-form` | Unica hoja de interes. Titulo `C2=Seguimiento de lotes`, fecha `D4` formato `dd/MM/yyyy`, cabecera `B7:H7`, datos `B8:H37` (30 filas). Checkbox destino `F4`. |
 | `db_lots` | Tabla destino a crear (no existe aun). |
 | `items` | Catalogo existente `A=color, B=titulo, C=tipo-material` — no se persiste, solo referencia. |
 
@@ -32,15 +32,15 @@ Seguimiento diario de lotes por fecha en la hoja `lotes-form`. La hoja funciona 
 | `C4` | `Fecha` | Label |
 | `D4` | `21/09/2026` — tipo `DATE` con formato `dd/MM/yyyy` nativo Sheets | Fecha del parte. Sin validacion/transformacion en Script — `getValue()` directo |
 | `F4` | `FALSE` (checkbox) | Trigger de guardado. `FALSE→TRUE` ejecuta guardado y al finalizar se resetea a `FALSE` |
-| `B7:G7` | `No | Titulo | Tipo Material | Codigo Lote | Color | Observacion` | Cabecera fija |
-| `B8:G37` | `B=No (1..30) | C=Titulo | D=Tipo Material | E=Codigo Lote | F=Color | G=Observacion` | Zona editable (ej. `R8: 1 | 2/24 | HB | | MOSTASA |`) — `No` es solo correlativo visual, no se persiste en `db_lots` |
+| `B7:H7` | `No | Titulo | Tipo Material | Linea Presentacion | Codigo Lote | Color | Observacion` | Cabecera fija |
+| `B8:H37` | `B=No (1..30) | C=Titulo | D=Tipo Material | E=Linea Presentacion | F=Codigo Lote | G=Color | H=Observacion` | Zona editable (ej. `R8: 1 | 2/24 | HB | LINEA-A | L-001 | MOSTASA |`) — `No` es solo correlativo visual, no se persiste en `db_lots` |
 
 > `D4` tiene formato `dd/MM/yyyy` nativo de Sheets. No se valida ni transforma en Apps Script. `F4` es checkbox insertado via `Insertar > Casilla de verificacion`.
 
 ## 3. Objetivos
 
 **Objetivos v1:**
-- Formulario reutilizable con el mismo layout (`B8:G37`)
+- Formulario reutilizable con el mismo layout (`B8:H37`)
 - Tabla `db_lots` consultable por `fecha` (`dd/MM/yyyy`)
 - Checkbox `F4` persiste todas las filas con contenido (upsert idempotente por `fecha` + posicion de fila)
 - Navegacion por fecha en `D4`: carga automatica si hay datos, formulario limpio si es fecha nueva
@@ -56,22 +56,22 @@ Seguimiento diario de lotes por fecha en la hoja `lotes-form`. La hoja funciona 
 
 ```
 lotes-form (formulario, D4 dd/MM/yyyy, F4 checkbox) --[F4 TRUE / Menu Guardar]--> Apps Script (upsert por fecha+posicion, LockService) --> db_lots (PK id = fecha-posicion)
-         ^-- onEdit D4 / Menu Resincronizar -- carga registros existentes o limpia B8:G37 --'
+         ^-- onEdit D4 / Menu Resincronizar -- carga registros existentes o limpia B8:H37 --'
 ```
 
-- `D4` controla la vista. `onEdit` en `D4` o `Lotes > Resincronizar` lee `db_lots` para esa fecha (`dd/MM/yyyy`): si hay filas, puebla `B8:G37`; si no, limpia `C8:G37`.
-- `F4 TRUE` (o Menu `Guardar`) recorre `B8:G37` y hace upsert por cada fila con al menos `Titulo` no vacio. Al finalizar resetea `F4=FALSE`. Re-guardar la misma fecha actualiza en sitio. `No` no se guarda.
+- `D4` controla la vista. `onEdit` en `D4` o `Lotes > Resincronizar` lee `db_lots` para esa fecha (`dd/MM/yyyy`): si hay filas, puebla `B8:H37`; si no, limpia `C8:H37`.
+- `F4 TRUE` (o Menu `Guardar`) recorre `B8:H37` y hace upsert por cada fila con al menos `Titulo` no vacio. Al finalizar resetea `F4=FALSE`. Re-guardar la misma fecha actualiza en sitio. `No` no se guarda.
 
 ## 5. Requerimientos Funcionales
 
 | ID | Requerimiento | Prioridad |
 |----|---------------|-----------|
-| FR-001 | Hoja `lotes-form` como unico formulario. `D4` tipo `DATE` formato `dd/MM/yyyy`, `B7:G7` cabecera fija, `B8:G37` 30 filas editables, `F4` checkbox. | Must |
+| FR-001 | Hoja `lotes-form` como unico formulario. `D4` tipo `DATE` formato `dd/MM/yyyy`, `B7:H7` cabecera fija, `B8:H37` 30 filas editables, `F4` checkbox. | Must |
 | FR-002 | Tabla `db_lots` con encabezados §6. Orden fijo. `fecha` con formato `dd/MM/yyyy`. Columna `No` del form no se persiste. | Must |
 | FR-003 | Trigger de guardado: checkbox `F4 FALSE→TRUE` ejecuta `guardarLotes()`. Al finalizar (exito o error) resetea `F4=FALSE` sin disparar nuevo guardado. Menu `Lotes > Guardar` ejecuta la misma funcion. | Must |
 | FR-004 | `D4` se lee con `getValue()` directo, sin validacion ni transformacion. Formato `dd/MM/yyyy` ya viene de Sheets. Si `D4` vacia al guardar → toast `Seleccione una fecha en D4.` y no escribe. | Must |
-| FR-005 | Upsert idempotente por `id = fecha-posicion` (posicion 1..30 = fila `B8:B37`). Itera `B8:G37`; si `C` (Titulo) vacio → fila ignorada (no se persiste). Si fila existe en DB y ahora `C` vacio → **borra** esa fila de `db_lots`. `creado` se preserva en update, `actualizado` se refresca. `No` no se almacena. | Must |
-| FR-006 | Rehidrate por fecha: `onEdit` en `D4` o `Lotes > Resincronizar` busca `fecha = D4` (`dd/MM/yyyy`) en `db_lots`. Si encuentra filas → escribe `C:G` en `B8:G37` correspondientes por posicion; filas sin registro quedan vacias. Si no encuentra → limpia `C8:G37` (deja `B8:B37` con `1..30`). | Must |
+| FR-005 | Upsert idempotente por `id = fecha-posicion` (posicion 1..30 = fila `B8:B37`). Itera `B8:H37`; si `C` (Titulo) vacio → fila ignorada (no se persiste). Si fila existe en DB y ahora `C` vacio → **borra** esa fila de `db_lots`. `creado` se preserva en update, `actualizado` se refresca. `No` no se almacena. | Must |
+| FR-006 | Rehidrate por fecha: `onEdit` en `D4` o `Lotes > Resincronizar` busca `fecha = D4` (`dd/MM/yyyy`) en `db_lots`. Si encuentra filas → escribe `C:H` en `B8:H37` correspondientes por posicion; filas sin registro quedan vacias. Si no encuentra → limpia `C8:H37` (deja `B8:B37` con `1..30`). | Must |
 | FR-007 | Auditoria `America/La_Paz` solo para `actualizado` (timestamp `yyyy-MM-dd HH:mm:ss`) y `creado_por`/`actualizado_por` (email `Session.getActiveUser().getEmail()` o `unknown`). Usa `Utilities.formatDate(new Date(),"America/La_Paz","yyyy-MM-dd HH:mm:ss")`. | Must |
 | FR-008 | Concurrencia con `LockService.getDocumentLock()` (timeout 5s, un reintento). | Must |
 | FR-009 | Menu `Lotes > Guardar | Resincronizar` y `onOpen` que lo crea. Solo dos entradas. | Must |
@@ -86,13 +86,14 @@ lotes-form (formulario, D4 dd/MM/yyyy, F4 checkbox) --[F4 TRUE / Menu Guardar]--
 | B | `fecha` | DATE | `21/09/2026` | Fecha del parte (desde `D4`, formato `dd/MM/yyyy`) |
 | C | `titulo` | STRING | `2/24` | `C8:C37` |
 | D | `tipo_material` | STRING | `HB` | `D8:D37` |
-| E | `codigo_lote` | STRING | `L-001` | `E8:E37` |
-| F | `color` | STRING | `MOSTASA` | `F8:F37` |
-| G | `observacion` | STRING | `` | `G8:G37` |
-| H | `creado` | DATETIME | `2026-09-22 08:00:00` | Primera insercion (`America/La_Paz`) |
-| I | `actualizado` | DATETIME | `2026-09-22 10:15:00` | Ultima modificacion (`America/La_Paz`) |
-| J | `creado_por` | STRING | `usuario@factory.bo` | `Session.getActiveUser().getEmail()` en creacion |
-| K | `actualizado_por` | STRING | `usuario@factory.bo` | Ultimo usuario que actualizo |
+| E | `linea_presentacion` | STRING | `LP-10` | `E8:E37` |
+| F | `codigo_lote` | STRING | `L-001` | `F8:F37` |
+| G | `color` | STRING | `MOSTASA` | `G8:G37` |
+| H | `observacion` | STRING | `` | `H8:H37` |
+| I | `creado` | DATETIME | `2026-09-22 08:00:00` | Primera insercion (`America/La_Paz`) |
+| J | `actualizado` | DATETIME | `2026-09-22 10:15:00` | Ultima modificacion (`America/La_Paz`) |
+| K | `creado_por` | STRING | `usuario@factory.bo` | `Session.getActiveUser().getEmail()` en creacion |
+| L | `actualizado_por` | STRING | `usuario@factory.bo` | Ultimo usuario que actualizo |
 
 ### 6.2 Clave Primaria
 
@@ -108,8 +109,8 @@ lotes-form (formulario, D4 dd/MM/yyyy, F4 checkbox) --[F4 TRUE / Menu Guardar]--
 |---|------|-------|
 | EC-01 | `D4` vacia al guardar | No se guarda. Toast `Seleccione una fecha en D4.` |
 | EC-02 | Fila con `Titulo` vacio | No se persiste. Si existia para ese `id` (`fecha-posicion`) → se borra de `db_lots` |
-| EC-03 | Cambio de `D4` a fecha con datos | Carga `C8:G37` desde `db_lots` para esa fecha (`dd/MM/yyyy`) |
-| EC-04 | Cambio de `D4` a fecha sin datos | Limpia `C8:G37`, deja `B8:B37` con `1..30` |
+| EC-03 | Cambio de `D4` a fecha con datos | Carga `C8:H37` desde `db_lots` para esa fecha (`dd/MM/yyyy`) |
+| EC-04 | Cambio de `D4` a fecha sin datos | Limpia `C8:H37`, deja `B8:B37` con `1..30` |
 | EC-05 | Checkbox `F4` | Solo `FALSE→TRUE` dispara guardado. Se resetea a `FALSE` con guard para no re-disparar `onEdit` |
 | EC-06 | Guardar lote editado | Upsert actualiza `actualizado` / `actualizado_por` |
 | EC-07 | Auditoria | Solo `actualizado` y `creado_por`/`actualizado_por` usan `America/La_Paz` |
@@ -118,13 +119,13 @@ lotes-form (formulario, D4 dd/MM/yyyy, F4 checkbox) --[F4 TRUE / Menu Guardar]--
 ## 8. Flujo
 
 **Guardar (checkbox o menu):**
-1. Usuario selecciona fecha en `D4` (`dd/MM/yyyy`) y completa filas en `B8:G37`.
+1. Usuario selecciona fecha en `D4` (`dd/MM/yyyy`) y completa filas en `B8:H37`.
 2. Marca `F4=TRUE` o ejecuta `Lotes > Guardar`.
 3. Sistema lee `D4` con `getValue()`, adquiere lock, hace upsert por cada fila con `Titulo`, resetea `F4=FALSE` y confirma `✅ Guardado: 21/09/2026 — 5 lotes`.
 
 **Navegacion por fecha:**
 1. Usuario cambia `D4` de `21/09/2026` a `20/09/2026` o ejecuta `Lotes > Resincronizar`.
 2. `onEdit` detecta `D4` (o menu), busca en `db_lots` `fecha = D4` (`dd/MM/yyyy`).
-3. Si hay datos, puebla `B8:G37`; si no, limpia `C8:G37`.
+3. Si hay datos, puebla `B8:H37`; si no, limpia `C8:H37`.
 
 *Fin PRD v0.1.0 — lotes.*
